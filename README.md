@@ -1,12 +1,12 @@
 # Vibe-Trading
 
-Crypto-focused trading research workspace powered by Coinbase market data and Exa web research.
+Crypto-focused trading research workspace powered by official Bitget MCP market/execution workflows and Exa web research.
 
 ## Stack
 
 - Frontend: React, TypeScript, Vite, Tailwind-style CSS, React Router, Lightweight Charts
 - Backend: Python, FastAPI, Uvicorn
-- Market data: Coinbase Exchange public crypto candles
+- Market data: Bitget via the official MCP server, with Coinbase public candles as fallback
 - Research: Exa AI search and page reading
 - Agent model: configurable OpenAI-compatible LLM provider
 
@@ -37,7 +37,8 @@ http://127.0.0.1:5899
 Local secrets belong in local `.env` files and are ignored by Git.
 
 - `EXA_API_KEY` enables web and deep research.
-- Coinbase market data works without an API key.
+- `BITGET_API_KEY`, `BITGET_SECRET_KEY`, and `BITGET_PASSPHRASE` enable private Bitget account reads and confirmed order execution through `@bitget-ai/bitget-agent-mcp`.
+- Bitget public market data works without a Bitget API key; Coinbase is retained only as degraded public-data fallback.
 
 ## Notes
 

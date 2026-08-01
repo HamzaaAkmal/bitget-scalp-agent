@@ -184,7 +184,7 @@ _PERMISSIONS_POLICY = (
 # Report-Only first: a later switch to enforcing mode can be validated against
 # real traffic without risking a broken app. Scoped to what the built SPA needs:
 # same-origin scripts/styles/fonts/img plus same-origin fetch/EventSource and
-# Coinbase's public WebSocket for live crypto charts.
+# Bitget/Coinbase public market-data sockets for live crypto charts.
 # Inline styles are allowed because ECharts and React ``style={}`` props set
 # them; fonts are self-hosted (@fontsource) so no external font host is listed.
 _CSP_REPORT_ONLY = (
@@ -193,7 +193,8 @@ _CSP_REPORT_ONLY = (
     "style-src 'self' 'unsafe-inline'; "
     "img-src 'self' data:; "
     "font-src 'self' data:; "
-    "connect-src 'self' https://api.exchange.coinbase.com wss://ws-feed.exchange.coinbase.com; "
+    "connect-src 'self' https://api.bitget.com wss://ws.bitget.com "
+    "https://api.exchange.coinbase.com wss://ws-feed.exchange.coinbase.com; "
     "frame-ancestors 'none'; "
     "base-uri 'self'; "
     "form-action 'self'"

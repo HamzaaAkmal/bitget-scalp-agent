@@ -30,6 +30,7 @@ __all__ = [
     "EnvConfig",
     "LLMConfig",
     "DataConfig",
+    "BitgetConfig",
     "APIConfig",
     "SwarmConfig",
     "AgentTuningConfig",
@@ -178,6 +179,31 @@ class DataConfig(_EnvBase):
     longbridge_app_key: str = Field(alias="LONGBRIDGE_APP_KEY", default="")
     longbridge_app_secret: str = Field(alias="LONGBRIDGE_APP_SECRET", default="")
     longbridge_access_token: str = Field(alias="LONGBRIDGE_ACCESS_TOKEN", default="")
+
+
+# ---------------------------------------------------------------------------
+# Bitget
+# ---------------------------------------------------------------------------
+
+
+class BitgetConfig(_EnvBase):
+    """Official Bitget MCP credentials, execution defaults, and risk defaults."""
+
+    bitget_api_key: str = Field(alias="BITGET_API_KEY", default="")
+    bitget_secret_key: str = Field(alias="BITGET_SECRET_KEY", default="")
+    bitget_passphrase: str = Field(alias="BITGET_PASSPHRASE", default="")
+    bitget_api_base_url: str = Field(alias="BITGET_API_BASE_URL", default="https://api.bitget.com")
+    bitget_timeout_ms: int = Field(alias="BITGET_TIMEOUT_MS", default=15000)
+    bitget_max_retries: int = Field(alias="BITGET_MAX_RETRIES", default=2)
+    bitget_env: str = Field(alias="BITGET_ENV", default="production")
+    bitget_default_margin_mode: str = Field(alias="BITGET_DEFAULT_MARGIN_MODE", default="isolated")
+    bitget_default_product_type: str = Field(alias="BITGET_DEFAULT_PRODUCT_TYPE", default="USDT-FUTURES")
+    default_leverage: int = Field(alias="DEFAULT_LEVERAGE", default=3)
+    max_leverage: int = Field(alias="MAX_LEVERAGE", default=10)
+    max_daily_loss_percent: float = Field(alias="MAX_DAILY_LOSS_PERCENT", default=3.0)
+    max_risk_per_trade_percent: float = Field(alias="MAX_RISK_PER_TRADE_PERCENT", default=1.0)
+    default_take_profit_ratio: float = Field(alias="DEFAULT_TAKE_PROFIT_RATIO", default=2.0)
+    default_stop_loss_ratio: float = Field(alias="DEFAULT_STOP_LOSS_RATIO", default=1.0)
 
 
 # ---------------------------------------------------------------------------
@@ -525,6 +551,7 @@ class EnvConfig(_EnvBase):
 
     llm: LLMConfig = Field(default_factory=LLMConfig)
     data: DataConfig = Field(default_factory=DataConfig)
+    bitget: BitgetConfig = Field(default_factory=BitgetConfig)
     api: APIConfig = Field(default_factory=APIConfig)
     swarm: SwarmConfig = Field(default_factory=SwarmConfig)
     agent_tuning: AgentTuningConfig = Field(default_factory=AgentTuningConfig)

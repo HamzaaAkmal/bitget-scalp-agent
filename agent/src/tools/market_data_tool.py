@@ -8,12 +8,13 @@ from typing import Any
 
 from src.agent.tools import BaseTool
 from src.market_data import DEFAULT_MAX_ROWS, fetch_market_data_json
+from src.services.bitget_mcp import fetch_candles, normalize_category, normalize_interval, normalize_symbol
 
 _CRYPTO_SYMBOL_RE = re.compile(r"^[A-Z0-9]{2,15}[-/](?:USD|USDT|USDC|BTC|ETH)$", re.I)
 
 
 def _normalize_crypto_codes(codes: list[str]) -> list[str]:
-    """Use the project crypto convention while preserving Coinbase USD support."""
+    """Use the project crypto convention while accepting USD/USDT forms."""
     normalized: list[str] = []
     for code in codes:
         value = code.strip().upper().replace("/", "-")
@@ -23,7 +24,7 @@ def _normalize_crypto_codes(codes: list[str]) -> list[str]:
     return normalized
 
 
-def _should_force_coinbase(source: str, codes: list[str]) -> bool:
+def _should_force_bitget(source: str, codes: list[str]) -> bool:
     if source not in {"auto", "yahoo", "yfinance"}:
         return False
     return bool(codes) and all(_CRYPTO_SYMBOL_RE.match(code.strip()) for code in codes)
@@ -50,7 +51,7 @@ class MarketDataTool(BaseTool):
 
     name = "get_market_data"
     description = (
-        "Fetch normalized OHLCV crypto market data through Coinbase. Use this "
+        "Fetch normalized OHLCV crypto market data through Bitget. Use this "
         "for BTC-USDT, ETH-USDT, SOL-USDT, and other crypto price bars."
     )
     parameters = {
@@ -73,12 +74,14 @@ class MarketDataTool(BaseTool):
                 "type": "string",
                 "enum": [
                     "auto",
+                    "bitget",
                     "coinbase",
                     "local",
                 ],
                 "description": (
-                    "Data source. 'auto' and 'coinbase' both use Coinbase for "
-                    "crypto. 'local' is only for user-provided crypto data."
+                    "Data source. 'auto' and 'bitget' both use Bitget for "
+                    "crypto. 'coinbase' is a legacy public-data fallback. "
+                    "'local' is only for user-provided crypto data."
                 ),
                 "default": "auto",
             },
@@ -109,9 +112,12 @@ class MarketDataTool(BaseTool):
         default_start, default_end = _default_date_window(interval)
         start_date = str(kwargs.get("start_date") or default_start)
         end_date = str(kwargs.get("end_date") or default_end)
-        if _should_force_coinbase(source, codes) or source == "auto":
-            codes = _normalize_crypto_codes(codes)
-            source = "coinbase"
+        if _should_force_bitget(source, codes) or source in {"auto", "bitget"}:
+            return _bitget_market_data_json(
+                codes=_normalize_crypto_codes(codes),
+                interval=interval,
+                max_rows=kwargs.get("max_rows", DEFAULT_MAX_ROWS),
+            )
         return fetch_market_data_json(
             codes=codes,
             start_date=start_date,
@@ -121,3 +127,24 @@ class MarketDataTool(BaseTool):
             max_rows=kwargs.get("max_rows", DEFAULT_MAX_ROWS),
             include_provenance=True,
         )
+
+
+def _bitget_market_data_json(*, codes: list[str], interval: str, max_rows: int) -> str:
+    """Return a fetch_market_data-compatible JSON envelope from Bitget MCP."""
+    interval = normalize_interval(interval)
+    limit = DEFAULT_MAX_ROWS if max_rows is None else int(max_rows)
+    if limit <= 0:
+        limit = 500
+    limit = max(20, min(limit, 1500))
+    results: dict[str, Any] = {}
+    provenance: dict[str, Any] = {}
+    for code in codes:
+        symbol = normalize_symbol(code)
+        bars = fetch_candles(symbol=symbol, category=normalize_category("USDT-FUTURES"), interval=interval, lookback=limit)
+        key = symbol.removesuffix("USDT") + "-USDT" if symbol.endswith("USDT") else symbol
+        results[key] = {"data": bars}
+        provenance[key] = {"source": "bitget", "requested_source": "bitget", "fallback_used": False}
+    results["_provenance"] = provenance
+    import json
+
+    return json.dumps(results, ensure_ascii=False, indent=2, allow_nan=False)

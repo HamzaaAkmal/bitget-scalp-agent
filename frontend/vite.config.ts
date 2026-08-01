@@ -11,6 +11,7 @@ const PROXY_PATHS = [
   "/settings/llm",
   "/settings/data-sources",
   "/market",
+  "/bitget",
   "/channels",
   "/mandate",
   "/live",

@@ -162,6 +162,35 @@ def _check_coinbase() -> CheckResult:
         )
 
 
+def _check_bitget_mcp() -> CheckResult:
+    """Check official Bitget MCP package and public market-data reachability."""
+    try:
+        from src.services.bitget_account import get_connection_status
+
+        status = get_connection_status()
+        if status.get("mcp_available"):
+            configured = "credentials configured" if status.get("credentials_configured") else "public data only"
+            return CheckResult(
+                name="Bitget MCP",
+                status="ready",
+                message=f"official MCP reachable ({configured})",
+                impact="",
+            )
+        return CheckResult(
+            name="Bitget MCP",
+            status="error",
+            message=str(status.get("error") or "official MCP unavailable"),
+            impact="Bitget market chart and execution unavailable; Coinbase public fallback may still work",
+        )
+    except Exception as exc:
+        return CheckResult(
+            name="Bitget MCP",
+            status="error",
+            message=f"{type(exc).__name__}: {exc}",
+            impact="Bitget market chart and execution unavailable; Coinbase public fallback may still work",
+        )
+
+
 def _check_yfinance() -> CheckResult:
     """Check yfinance availability."""
     try:
@@ -289,6 +318,7 @@ def run_preflight(console: Optional[Console] = None) -> List[CheckResult]:
 
     checks = [
         _check_llm_provider,
+        _check_bitget_mcp,
         _check_coinbase,
         _check_exa,
         _check_content_filter_threshold,

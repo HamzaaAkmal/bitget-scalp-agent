@@ -211,8 +211,57 @@ export const api = {
     q.set("symbol", params.symbol);
     q.set("interval", params.interval);
     q.set("lookback", String(params.lookback));
+    if (params.category) q.set("category", params.category);
     return request<CryptoCandlesResponse>(`/market/crypto/candles?${q.toString()}`);
   },
+  getBitgetStatus: () => request<BitgetStatus>("/bitget/status"),
+  searchBitgetSymbols: (query: string, category?: string, limit = 10) => {
+    const q = new URLSearchParams();
+    q.set("query", query);
+    q.set("limit", String(limit));
+    if (category) q.set("category", category);
+    return request<BitgetSymbolSearchResponse>(`/bitget/symbols/search?${q.toString()}`);
+  },
+  getBitgetCandles: (params: CryptoCandleParams) => {
+    const q = new URLSearchParams();
+    q.set("symbol", params.symbol);
+    q.set("interval", params.interval);
+    q.set("lookback", String(params.lookback));
+    if (params.category) q.set("category", params.category);
+    return request<CryptoCandlesResponse>(`/bitget/market/candles?${q.toString()}`);
+  },
+  getBitgetAccount: (params: { category?: string; symbol?: string; coin?: string } = {}) => {
+    const q = new URLSearchParams();
+    if (params.category) q.set("category", params.category);
+    if (params.symbol) q.set("symbol", params.symbol);
+    if (params.coin) q.set("coin", params.coin);
+    const qs = q.toString();
+    return request<BitgetMcpEnvelope>(`/bitget/account${qs ? `?${qs}` : ""}`);
+  },
+  getBitgetPositions: (params: { category?: string; symbol?: string } = {}) => {
+    const q = new URLSearchParams();
+    if (params.category) q.set("category", params.category);
+    if (params.symbol) q.set("symbol", params.symbol);
+    const qs = q.toString();
+    return request<BitgetMcpEnvelope>(`/bitget/positions${qs ? `?${qs}` : ""}`);
+  },
+  getBitgetOrders: (params: { category?: string; symbol?: string } = {}) => {
+    const q = new URLSearchParams();
+    if (params.category) q.set("category", params.category);
+    if (params.symbol) q.set("symbol", params.symbol);
+    const qs = q.toString();
+    return request<BitgetMcpEnvelope>(`/bitget/orders${qs ? `?${qs}` : ""}`);
+  },
+  createBitgetTradeProposal: (body: BitgetTradeProposalRequest) =>
+    request<BitgetTradeProposalResponse>("/bitget/trade-proposals", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  executeBitgetTradeProposal: (proposalId: string, body: BitgetExecuteProposalRequest) =>
+    request<BitgetExecutionResponse>(`/bitget/trade-proposals/${encodeURIComponent(proposalId)}/execute`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   getChannelStatus: () => request<ChannelRuntimeStatus>("/channels/status"),
   startChannels: () => request<ChannelRuntimeActionResponse>("/channels/start", { method: "POST" }),
   stopChannels: () => request<ChannelRuntimeActionResponse>("/channels/stop", { method: "POST" }),
@@ -374,6 +423,7 @@ export interface CryptoCandleParams {
   symbol: string;
   interval: string;
   lookback: number;
+  category?: string;
 }
 
 export interface CryptoCandle {
@@ -387,12 +437,119 @@ export interface CryptoCandle {
 
 export interface CryptoCandlesResponse {
   status: string;
-  provider: "coinbase";
+  provider: "bitget" | "coinbase";
   symbol: string;
   product_id: string;
+  category?: string;
   interval: string;
   bars: CryptoCandle[];
   provenance?: Record<string, unknown>;
+}
+
+export interface BitgetStatus {
+  status: string;
+  server: string;
+  mcp_package: string;
+  mcp_available: boolean;
+  credentials_configured: boolean;
+  credential_fields: Record<string, boolean>;
+  environment: string;
+  default_product_type: string;
+  default_margin_mode: string;
+  error?: string | null;
+}
+
+export interface BitgetSymbolCandidate {
+  symbol: string;
+  category: string;
+  base_coin?: string;
+  quote_coin?: string;
+  market?: string;
+  exchange?: string;
+  source?: string;
+  type?: string;
+  status?: string;
+  price_precision?: number | null;
+  quantity_precision?: number | null;
+  min_order_qty?: string | null;
+  min_order_amount?: string | null;
+  max_leverage?: number | null;
+}
+
+export interface BitgetSymbolSearchResponse {
+  status: string;
+  query: string;
+  count: number;
+  candidates: BitgetSymbolCandidate[];
+  sources?: Record<string, unknown>;
+  error?: string;
+}
+
+export interface BitgetMcpEnvelope {
+  status: string;
+  data?: unknown;
+  structured_content?: unknown;
+  text?: string;
+  error?: string;
+  [key: string]: unknown;
+}
+
+export interface BitgetTradeProposalRequest {
+  prompt: string;
+  symbol?: string;
+  category?: string;
+}
+
+export interface BitgetTradeProposal {
+  proposal_id: string;
+  status: string;
+  created_at: number;
+  expires_at: number;
+  prompt: string;
+  symbol: BitgetSymbolCandidate;
+  category: string;
+  timeframe: string;
+  direction: "BUY" | "SELL" | "WAIT";
+  confidence: number;
+  reasoning: string[];
+  entry?: number | null;
+  stop_loss?: number | null;
+  take_profit?: number | null;
+  risk_reward?: number | null;
+  expected_duration?: string | null;
+  suggested_leverage?: number | null;
+  suggested_margin_usdt?: number | null;
+  suggested_notional_usdt?: number | null;
+  suggested_qty?: number | null;
+  margin_mode?: string | null;
+  warnings?: string[];
+}
+
+export interface BitgetTradeProposalResponse {
+  status: string;
+  message?: string;
+  intent?: Record<string, unknown>;
+  signal?: Record<string, unknown>;
+  proposal?: BitgetTradeProposal;
+  question?: string;
+}
+
+export interface BitgetExecuteProposalRequest {
+  confirmation_text: string;
+  dry_run?: boolean;
+}
+
+export interface BitgetExecutionResponse {
+  status: string;
+  proposal_id?: string;
+  dry_run?: boolean;
+  symbol?: string;
+  category?: string;
+  side?: string;
+  qty?: number;
+  actions?: Array<Record<string, unknown>>;
+  order?: BitgetMcpEnvelope;
+  error?: string;
 }
 
 export interface ChannelAdapterStatus {

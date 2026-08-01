@@ -25,6 +25,7 @@ from src.live.order_guard import LiveOrderGuardTool
 from src.tools.mcp import MCPRemoteTool
 from src.trading.connectors.alpaca.classification import ALPACA_TOOL_CLASS
 from src.trading.connectors.binance.classification import BINANCE_TOOL_CLASS
+from src.trading.connectors.bitget.classification import BITGET_TOOL_CLASS
 from src.trading.connectors.dhan.classification import DHAN_TOOL_CLASS
 from src.trading.connectors.futu.classification import FUTU_TOOL_CLASS
 from src.trading.connectors.ibkr.classification import IBKR_TOOL_CLASS
@@ -50,6 +51,7 @@ _BROKER_CURATED_MAPS = {
     "alpaca": ALPACA_TOOL_CLASS,
     "okx": OKX_TOOL_CLASS,
     "binance": BINANCE_TOOL_CLASS,
+    "bitget": BITGET_TOOL_CLASS,
     "futu": FUTU_TOOL_CLASS,
     "dhan": DHAN_TOOL_CLASS,
     "shoonya": SHOONYA_TOOL_CLASS,

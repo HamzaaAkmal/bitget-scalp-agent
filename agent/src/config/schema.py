@@ -12,13 +12,14 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 # wildcard ``enabled_tools`` (which would re-admit every WRITE/UNKNOWN tool) is
 # rejected at config-load time unless a broker-specific read-only OAuth probe is
 # explicitly documented below.
-LIVE_BROKER_SERVER_KEYS: frozenset[str] = frozenset({"robinhood", "ibkr"})
+LIVE_BROKER_SERVER_KEYS: frozenset[str] = frozenset({"robinhood", "ibkr", "bitget"})
 
 # URL host suffix -> canonical live-broker key. Detection by host prevents an
 # aliased config key from bypassing the wildcard rejection / classification gate.
 LIVE_BROKER_URL_HOST_SUFFIX_TO_KEY: dict[str, str] = {
     "robinhood.com": "robinhood",
     "ibkr.com": "ibkr",
+    "bitget.com": "bitget",
 }
 
 # Live-broker URL host suffixes. Detecting a live broker by config key alone is
@@ -234,6 +235,29 @@ IBKR_MCP_SERVER_SEED: dict[str, object] = {
         "cache_dir": "~/.vibe-trading/live/ibkr/oauth",
     },
     "enabled_tools": ["*"],
+}
+
+# Official Bitget MCP stdio seed. The allowlist deliberately excludes raw,
+# deposit, withdraw, transfer, subaccount, and repayment tools: Vibe-Trading
+# only needs market/account/order/position/config verbs for trading execution,
+# and withdrawal permissions are never required.
+BITGET_MCP_SERVER_SEED: dict[str, object] = {
+    "command": "npx",
+    "args": ["-y", "@bitget-ai/bitget-agent-mcp"],
+    "env": {
+        "BITGET_API_KEY": "${BITGET_API_KEY}",
+        "BITGET_SECRET_KEY": "${BITGET_SECRET_KEY}",
+        "BITGET_PASSPHRASE": "${BITGET_PASSPHRASE}",
+    },
+    "enabled_tools": [
+        "discover",
+        "market",
+        "account_overview",
+        "account_config",
+        "order",
+        "position",
+        "strategy_order",
+    ],
 }
 
 

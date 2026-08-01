@@ -68,7 +68,7 @@ class GetFundamentalsTool(BaseTool):
         "date. Returns {field: date x symbol records}. Fields use the unified "
         "fundamental schema, e.g. roe, gross_profitability, net_income, "
         "shares_diluted. Equity fundamentals only; do not use for crypto. "
-        "For crypto research, use web_search plus get_market_data(source='coinbase'). "
+        "For crypto research, use web_search plus get_market_data(source='bitget'). "
         "Default freq is ttm and PIT mode is on."
     )
     parameters = {
@@ -138,7 +138,7 @@ class GetFundamentalsTool(BaseTool):
         if any(symbol.upper().endswith(_CRYPTO_SUFFIXES) for symbol in symbols):
             return _error(
                 "Cryptocurrencies do not have equity-style fundamentals. "
-                "Use get_market_data with source='coinbase' for price bars and web_search for crypto market research."
+                "Use get_market_data with source='bitget' for price bars and web_search for crypto market research."
             )
 
         fields = kwargs.get("fields")

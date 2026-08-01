@@ -222,6 +222,10 @@ register_settings_routes(app)
 from src.api.market_routes import register_market_routes  # noqa: E402
 register_market_routes(app)
 
+# --- Bitget ---
+from src.api.bitget_routes import register_bitget_routes  # noqa: E402
+register_bitget_routes(app)
+
 from src.api.settings_routes import (  # noqa: F401, E402
     _baostock_supported,
     _baostock_installed,

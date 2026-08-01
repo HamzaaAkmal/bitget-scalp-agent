@@ -196,7 +196,11 @@ def get_history(
                 limit=limit,
             ),
         )
-    return _unsupported(profile, "history.read")
+    return _call_remote(
+        profile,
+        "history",
+        {"symbol": symbol, "period": period, "limit": limit, "exchange": exchange, "currency": currency},
+    )
 
 
 #: Connector → (instrument type, fixed asset class | None). ``None`` asset class
@@ -207,6 +211,7 @@ def get_history(
 _CONNECTOR_INSTRUMENT = {
     "okx": ("crypto", "crypto"),
     "binance": ("crypto", "crypto"),
+    "bitget": ("crypto", "crypto"),
     "alpaca": ("equity", "us_equity"),
     "tiger": ("equity", None),
     "longbridge": ("equity", None),
@@ -450,6 +455,19 @@ def _ibkr_config(profile: TradingProfile, overrides: dict[str, Any]):
 
 def _remote_status(profile: TradingProfile) -> dict[str, Any]:
     """Return local authorization/config status for a remote MCP profile."""
+    if profile.connector == "bitget":
+        from src.services.bitget_account import get_connection_status
+
+        report = get_connection_status()
+        report["profile_id"] = profile.id
+        report["connector"] = profile.connector
+        report["environment"] = profile.environment
+        report["transport"] = profile.transport
+        report["configured"] = True
+        report["capabilities"] = list(profile.capabilities)
+        report["readonly"] = profile.readonly
+        return report
+
     from src.config.loader import load_agent_config
     from src.live.registry import has_cached_oauth_token
 
@@ -487,6 +505,19 @@ def _account_arg(overrides: dict[str, Any]) -> dict[str, Any]:
 
 def _call_remote(profile: TradingProfile, operation: str, arguments: dict[str, Any]) -> dict[str, Any]:
     """Call a known read operation on a remote MCP connector profile."""
+    if profile.connector == "bitget":
+        from src.services.bitget_mcp import call_bitget_tool
+
+        remote_name = _remote_tool_name(profile.connector, operation)
+        if remote_name is None:
+            return _unsupported(profile, f"{operation}.read")
+        call_result = call_bitget_tool(
+            remote_name,
+            _remote_arguments(profile.connector, operation, arguments),
+            read_only=True,
+        )
+        return _with_profile(profile, call_result)
+
     from src.config.loader import load_agent_config
     from src.live.registry import has_cached_oauth_token
     from src.tools.mcp import MCPServerAdapter
@@ -557,6 +588,14 @@ def _remote_tool_name(connector: str, operation: str) -> str | None:
         from src.trading.connectors.robinhood.mcp import remote_tool_name
 
         return remote_tool_name(operation)
+    if connector == "bitget":
+        return {
+            "account": "account_overview",
+            "positions": "position",
+            "orders": "order",
+            "quote": "market",
+            "history": "market",
+        }.get(operation)
     return None
 
 
@@ -566,6 +605,32 @@ def _remote_arguments(connector: str, operation: str, arguments: dict[str, Any])
         from src.trading.connectors.robinhood.mcp import remote_arguments
 
         return remote_arguments(operation, arguments)
+    if connector == "bitget":
+        from src.services.bitget_mcp import default_product_type, normalize_category, normalize_interval, normalize_symbol
+
+        category = normalize_category(arguments.get("category") or default_product_type())
+        if operation == "account":
+            payload: dict[str, Any] = {"category": category, "view": "summary"}
+            if arguments.get("symbol"):
+                payload["symbol"] = normalize_symbol(str(arguments["symbol"]))
+            return payload
+        if operation == "positions":
+            return {"action": "info", "category": category, "view": "summary"}
+        if operation == "orders":
+            return {"action": "open", "category": category, "view": "summary"}
+        if operation == "quote":
+            symbol = normalize_symbol(str(arguments.get("symbol") or "BTCUSDT"))
+            return {"action": "tickers", "category": category, "symbol": symbol, "view": "summary"}
+        if operation == "history":
+            symbol = normalize_symbol(str(arguments.get("symbol") or "BTCUSDT"))
+            return {
+                "action": "candles",
+                "category": category,
+                "symbol": symbol,
+                "interval": normalize_interval(str(arguments.get("period") or "1D")),
+                "limit": str(arguments.get("limit") or 90),
+                "view": "summary",
+            }
     return {}
 
 

@@ -16,7 +16,7 @@ from typing import Any
 import pandas as pd
 
 from src.agent.tools import BaseTool
-from src.market_data import fetch_market_data
+from src.services.bitget_mcp import fetch_candles
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +53,9 @@ def _normalize_interval(interval: str) -> str:
         "daily": "1D",
         "1h": "1H",
         "60m": "1H",
+        "1w": "1W",
+        "week": "1W",
+        "weekly": "1W",
         "15min": "15m",
         "5min": "5m",
         "1min": "1m",
@@ -84,7 +87,13 @@ def _records_to_frame(raw: Any) -> pd.DataFrame:
         return frame
     date_col = next((col for col in ("trade_date", "date", "time", "timestamp") if col in frame.columns), None)
     if date_col:
-        frame[date_col] = pd.to_datetime(frame[date_col], errors="coerce")
+        numeric_dates = pd.to_numeric(frame[date_col], errors="coerce")
+        if numeric_dates.notna().any():
+            median = float(numeric_dates.dropna().median())
+            unit = "ms" if median > 1_000_000_000_000 else "s"
+            frame[date_col] = pd.to_datetime(numeric_dates, unit=unit, errors="coerce", utc=True)
+        else:
+            frame[date_col] = pd.to_datetime(frame[date_col], errors="coerce", utc=True)
         frame = frame.dropna(subset=[date_col]).set_index(date_col).sort_index()
     for column in ("open", "high", "low", "close", "volume"):
         if column in frame.columns:
@@ -170,7 +179,7 @@ class TechnicalIndicatorTool(BaseTool):
     name = "technical_indicators"
     description = (
         "Compute common technical indicators (RSI, MACD, Bollinger Bands, "
-        "SMA, EMA) for a crypto trading symbol. Uses Coinbase market data "
+        "SMA, EMA) for a crypto trading symbol. Uses Bitget market data "
         "for crypto price history, then computes indicators locally."
     )
     parameters = {
@@ -223,24 +232,13 @@ class TechnicalIndicatorTool(BaseTool):
             lookback = _DEFAULT_LOOKBACK
         lookback = max(10, min(lookback, _MAX_LOOKBACK))
 
-        start_date, end_date = _date_window(interval, lookback)
-
         try:
-            data = fetch_market_data(
-                codes=[symbol],
-                start_date=start_date,
-                end_date=end_date,
-                source="coinbase",
-                interval=interval,
-                max_rows=0,
-                include_provenance=True,
-            )
+            bars = fetch_candles(symbol=symbol, category="USDT-FUTURES", interval=interval, lookback=lookback)
         except Exception as exc:
-            logger.debug("fetch_market_data failed for %s: %s", symbol, exc)
+            logger.debug("fetch_bitget_candles failed for %s: %s", symbol, exc)
             return json.dumps({"ok": False, "error": f"Failed to fetch data: {exc}"})
 
-        raw = data.get(symbol)
-        df = _records_to_frame(raw).tail(lookback)
+        df = _records_to_frame(bars).tail(lookback)
         if df.empty:
             return json.dumps({"ok": False, "error": f"No data returned for {symbol}"})
 
@@ -271,13 +269,12 @@ class TechnicalIndicatorTool(BaseTool):
 
         latest_close = float(close.iloc[-1]) if len(close) > 0 else None
         latest_date = str(close.index[-1])[:10] if hasattr(close, "index") and len(close) > 0 else None
-        provenance = data.get("_provenance", {}).get(symbol, {}) if isinstance(data.get("_provenance"), dict) else {}
 
         return json.dumps(
             {
                 "ok": True,
                 "symbol": symbol,
-                "source": provenance.get("source", "coinbase"),
+                "source": "bitget",
                 "interval": interval,
                 "latest_close": latest_close,
                 "latest_date": latest_date,
