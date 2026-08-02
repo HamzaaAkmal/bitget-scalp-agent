@@ -22,7 +22,7 @@ const PROXY_PATHS = [
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   const apiTarget = env.VITE_API_URL || "http://127.0.0.1:8899";
-  const apiProxy = { target: apiTarget, changeOrigin: true };
+  const apiProxy = { target: apiTarget, changeOrigin: true, ws: true };
   const apiProxyWithHtmlFallback = {
     ...apiProxy,
     bypass(req: { headers: { accept?: string } }) {

@@ -32,7 +32,7 @@ Tool call sequence:
 6. read_file("artifacts/metrics.csv") → 查看结果
 7. (如需修复) edit_file → backtest → read_file
 
-## Example 3: Crypto trend strategy (Coinbase)
+## Example 3: Crypto trend strategy (Bitget)
 
 User: "BTC-USDT趋势跟踪策略，回测2024年"
 
@@ -40,7 +40,7 @@ Tool call sequence:
 1. load_skill("strategy-generate") → 获得工作流指引
 2. write_file("config.json") → 配置
    ```json
-   {"source": "coinbase", "codes": ["BTC-USDT"], "start_date": "2024-01-01", "end_date": "2024-12-31", "initial_cash": 1000000, "commission": 0.001, "extra_fields": null}
+   {"source": "bitget", "codes": ["BTC-USDT"], "start_date": "2024-01-01", "end_date": "2024-12-31", "initial_cash": 1000000, "commission": 0.001, "extra_fields": null}
    ```
 3. write_file("code/signal_engine.py") → 趋势策略代码
 4. bash("python -c \"import ast; ast.parse(open('code/signal_engine.py').read()); print('OK')\"") → AST 检查

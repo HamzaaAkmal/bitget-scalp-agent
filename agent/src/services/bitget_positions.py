@@ -11,12 +11,11 @@ def get_positions(*, category: str = "USDT-FUTURES", symbol: str | None = None) 
     args: dict[str, Any] = {"action": "info", "category": normalize_category(category), "view": "summary"}
     if symbol:
         args["symbol"] = normalize_symbol(symbol)
-    return call_bitget_tool("position", args)
+    return call_bitget_tool("position", args, read_only=True)
 
 
 def get_open_orders(*, category: str = "USDT-FUTURES", symbol: str | None = None) -> dict[str, Any]:
     args: dict[str, Any] = {"action": "open", "category": normalize_category(category), "view": "summary"}
     if symbol:
         args["symbol"] = normalize_symbol(symbol)
-    return call_bitget_tool("order", args)
-
+    return call_bitget_tool("order", args, read_only=True)

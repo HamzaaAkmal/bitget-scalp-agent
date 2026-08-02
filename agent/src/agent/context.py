@@ -109,6 +109,8 @@ Decide which workflow to use based on the request:
 5. Show BUY/SELL/WAIT, confidence, entry, stop loss, take profit, risk/reward, leverage, margin, and warnings.
 6. Ask exactly: "Would you like me to execute this trade?"
 7. Only after the user's explicit affirmative confirmation, call `bitget_execute_trade(proposal_id=..., confirmation_text="<user confirmation>")`.
+8. For existing Bitget exposure, use `bitget_positions`, `bitget_orders`, `bitget_fills`, `bitget_strategy_orders`, `bitget_risk_dashboard`, and `bitget_alerts` before suggesting management actions.
+9. Modify TP/SL, partial close, or scale only through `bitget_modify_tpsl`, `bitget_partial_close`, or `bitget_scale_position` after explicit confirmation; use `bitget_trailing_stop_proposal` for proposals only.
 Never place a Bitget order directly from analysis text, and never use raw MCP, deposit, withdraw, transfer, subaccount, or repayment tools.
 
 **Document / web** — user provides a PDF or URL:

@@ -1,6 +1,6 @@
 ---
 name: minute-analysis
-description: Minute-level data analysis and backtesting. Retrieves minute candlesticks through Coinbase/Tushare/yfinance and can be used both for analysis and as input to the backtest engine.
+description: Minute-level data analysis and backtesting. Retrieves minute candlesticks through Bitget/Tushare/yfinance and can be used both for analysis and as input to the backtest engine.
 category: strategy
 ---
 # Minute-Level Data Analysis and Backtesting
@@ -16,7 +16,7 @@ For minute-level backtests, simply add the `interval` field in `config.json`:
 
 ```json
 {
-  "source": "coinbase",
+  "source": "bitget",
   "codes": ["BTC-USDT"],
   "start_date": "2026-03-01",
   "end_date": "2026-03-15",
@@ -26,30 +26,26 @@ For minute-level backtests, simply add the `interval` field in `config.json`:
 }
 ```
 
-- The annualization factor is inferred automatically from `source + interval` (`Coinbase 5m = 365 x 288 = 105120`)
+- The annualization factor is inferred automatically from `source + interval` (`Bitget 5m = 365 x 288 = 105120`)
 - Minute-level datasets are large. Recommended time limits: no more than 7 days for `1m`, no more than 30 days for `5m`, and no more than 1 year for `1H`
 
 ## Supported Data Sources and Intervals
 
 | Data Source | Supported Intervals | Notes |
 |--------|---------|------|
-| Coinbase | 1m/5m/15m/1H/6H/1D | Cryptocurrency, trades 7x24 |
+| Bitget | 1m/3m/5m/15m/30m/1H/4H/1D/1W | Cryptocurrency, trades 7x24 |
 | Tushare | 1m/5m/15m/30m/1H | China A-shares, requires score >= 2000 |
 | yfinance | 1m/5m/15m/30m/1H | Hong Kong / US equities (free, no key required) |
 
-## Coinbase Minute Candlestick API
+## Bitget Minute Candlestick API
 
 ```python
-import requests
 import pandas as pd
+from src.services.bitget_mcp import fetch_candles
 
-resp = requests.get("https://api.exchange.coinbase.com/products/BTC-USD/candles", params={
-    "granularity": "60",  # 60/300/900/3600/21600/86400 seconds
-})
-data = resp.json()
-columns = ["time", "low", "high", "open", "close", "volume"]
-df = pd.DataFrame(data, columns=columns).sort_values("time")
-df["time"] = pd.to_datetime(df["time"].astype("int64"), unit="s", utc=True)
+data = fetch_candles(symbol="BTCUSDT", category="USDT-FUTURES", interval="5m", lookback=300)
+df = pd.DataFrame(data).sort_values("time")
+df["time"] = pd.to_datetime(df["time"].astype("int64"), unit="ms", utc=True)
 for col in ["open", "high", "low", "close", "volume"]:
     df[col] = df[col].astype(float)
 ```

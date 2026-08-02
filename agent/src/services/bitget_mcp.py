@@ -93,7 +93,7 @@ def call_bitget_tool(
             "remote_tool": remote,
             "error": f"Bitget MCP tool '{remote}' is not allowed by Vibe-Trading",
         }
-    if read_only and remote not in BITGET_PUBLIC_TOOLS and remote not in {"account_overview", "order", "position"}:
+    if read_only and remote not in BITGET_PUBLIC_TOOLS and remote not in {"account_overview", "order", "position", "strategy_order"}:
         return {
             "status": "error",
             "server": BITGET_SERVER_NAME,
@@ -168,6 +168,40 @@ def fetch_candles(
     if not isinstance(rows, list):
         raise RuntimeError(f"No Bitget candle data for {symbol}")
     return [_normalize_candle_row(row) for row in rows if _normalize_candle_row(row) is not None][-limit:]
+
+
+def fetch_candles_history(
+    *,
+    symbol: str,
+    category: str = DEFAULT_PRODUCT_TYPE,
+    interval: str = "5m",
+    start_ms: int,
+    end_ms: int,
+    limit: int = 200,
+) -> list[dict[str, Any]]:
+    """Fetch Bitget historical candles for a bounded millisecond range."""
+    category = normalize_category(category)
+    symbol = normalize_symbol(symbol)
+    interval = normalize_interval(interval)
+    page_limit = max(20, min(int(limit), 1500))
+    result = call_market(
+        {
+            "action": "candlesHistory",
+            "category": category,
+            "symbol": symbol,
+            "interval": interval,
+            "startTime": str(int(start_ms)),
+            "endTime": str(int(end_ms)),
+            "limit": str(page_limit),
+            "view": "summary",
+        }
+    )
+    payload = extract_bitget_payload(result)
+    rows = payload.get("data")
+    if not isinstance(rows, list):
+        raise RuntimeError(f"No Bitget historical candle data for {symbol}")
+    normalized = [_normalize_candle_row(row) for row in rows if _normalize_candle_row(row) is not None]
+    return [row for row in normalized if row is not None]
 
 
 def fetch_ticker(*, symbol: str, category: str = DEFAULT_PRODUCT_TYPE) -> dict[str, Any]:

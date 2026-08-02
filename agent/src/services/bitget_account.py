@@ -19,5 +19,4 @@ def get_account_overview(*, category: str | None = None, symbol: str | None = No
         args["symbol"] = normalize_symbol(symbol)
     if coin:
         args["coin"] = str(coin).strip().upper()
-    return call_bitget_tool("account_overview", args)
-
+    return call_bitget_tool("account_overview", args, read_only=True)

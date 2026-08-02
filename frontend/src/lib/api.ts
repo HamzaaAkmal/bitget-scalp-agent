@@ -252,6 +252,37 @@ export const api = {
     const qs = q.toString();
     return request<BitgetMcpEnvelope>(`/bitget/orders${qs ? `?${qs}` : ""}`);
   },
+  getBitgetFills: (params: { category?: string; symbol?: string; limit?: number } = {}) => {
+    const q = new URLSearchParams();
+    if (params.category) q.set("category", params.category);
+    if (params.symbol) q.set("symbol", params.symbol);
+    if (params.limit) q.set("limit", String(params.limit));
+    const qs = q.toString();
+    return request<BitgetMcpEnvelope>(`/bitget/fills${qs ? `?${qs}` : ""}`);
+  },
+  getBitgetStrategyOrders: (params: { category?: string; symbol?: string; status?: string; limit?: number } = {}) => {
+    const q = new URLSearchParams();
+    if (params.category) q.set("category", params.category);
+    if (params.symbol) q.set("symbol", params.symbol);
+    if (params.status) q.set("status", params.status);
+    if (params.limit) q.set("limit", String(params.limit));
+    const qs = q.toString();
+    return request<BitgetMcpEnvelope>(`/bitget/strategy-orders${qs ? `?${qs}` : ""}`);
+  },
+  getBitgetRiskDashboard: (params: { category?: string; symbol?: string } = {}) => {
+    const q = new URLSearchParams();
+    if (params.category) q.set("category", params.category);
+    if (params.symbol) q.set("symbol", params.symbol);
+    const qs = q.toString();
+    return request<BitgetRiskDashboard>(`/bitget/risk-dashboard${qs ? `?${qs}` : ""}`);
+  },
+  getBitgetAlerts: (params: { category?: string; symbol?: string } = {}) => {
+    const q = new URLSearchParams();
+    if (params.category) q.set("category", params.category);
+    if (params.symbol) q.set("symbol", params.symbol);
+    const qs = q.toString();
+    return request<BitgetAlertsResponse>(`/bitget/alerts${qs ? `?${qs}` : ""}`);
+  },
   createBitgetTradeProposal: (body: BitgetTradeProposalRequest) =>
     request<BitgetTradeProposalResponse>("/bitget/trade-proposals", {
       method: "POST",
@@ -259,6 +290,26 @@ export const api = {
     }),
   executeBitgetTradeProposal: (proposalId: string, body: BitgetExecuteProposalRequest) =>
     request<BitgetExecutionResponse>(`/bitget/trade-proposals/${encodeURIComponent(proposalId)}/execute`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateBitgetTpsl: (body: BitgetModifyTpslRequest) =>
+    request<BitgetMcpEnvelope>("/bitget/strategy-orders/tpsl", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  partialCloseBitgetPosition: (body: BitgetPartialCloseRequest) =>
+    request<BitgetMcpEnvelope>("/bitget/positions/partial-close", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  scaleBitgetPosition: (body: BitgetScalePositionRequest) =>
+    request<BitgetMcpEnvelope>("/bitget/positions/scale", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  createBitgetTrailingStopProposal: (body: BitgetTrailingStopProposalRequest) =>
+    request<BitgetTrailingStopProposal>("/bitget/trailing-stop-proposals", {
       method: "POST",
       body: JSON.stringify(body),
     }),
@@ -550,6 +601,92 @@ export interface BitgetExecutionResponse {
   actions?: Array<Record<string, unknown>>;
   order?: BitgetMcpEnvelope;
   error?: string;
+}
+
+export interface BitgetRiskDashboard {
+  status: string;
+  category: string;
+  symbol: string;
+  summary?: {
+    positions?: number;
+    estimated_notional_usdt?: number;
+    estimated_unrealized_pnl_usdt?: number;
+  };
+  account?: BitgetMcpEnvelope;
+  positions?: BitgetMcpEnvelope;
+  orders?: BitgetMcpEnvelope;
+  strategy_orders?: BitgetMcpEnvelope;
+  funding?: BitgetMcpEnvelope;
+  open_interest?: BitgetMcpEnvelope;
+  error?: string;
+}
+
+export interface BitgetAlert {
+  type: string;
+  severity: string;
+  symbol?: string;
+  status?: string;
+  distance_percent?: number;
+}
+
+export interface BitgetAlertsResponse {
+  status: string;
+  category: string;
+  symbol: string;
+  alerts: BitgetAlert[];
+  positions?: BitgetMcpEnvelope;
+  order_history?: BitgetMcpEnvelope;
+  ticker?: BitgetMcpEnvelope;
+}
+
+export interface BitgetModifyTpslRequest {
+  symbol: string;
+  category?: string;
+  pos_side: string;
+  take_profit?: number | null;
+  stop_loss?: number | null;
+  qty?: number | null;
+  strategy_order_id?: string | null;
+  confirmation_text: string;
+  dry_run?: boolean;
+}
+
+export interface BitgetPartialCloseRequest {
+  symbol: string;
+  category?: string;
+  pos_side: string;
+  qty: number;
+  confirmation_text: string;
+  dry_run?: boolean;
+}
+
+export interface BitgetScalePositionRequest {
+  symbol: string;
+  category?: string;
+  side: string;
+  qty: number;
+  pos_side?: string | null;
+  confirmation_text: string;
+  dry_run?: boolean;
+}
+
+export interface BitgetTrailingStopProposalRequest {
+  symbol: string;
+  category?: string;
+  pos_side: string;
+  callback_percent: number;
+}
+
+export interface BitgetTrailingStopProposal {
+  status: string;
+  symbol: string;
+  category: string;
+  pos_side: string;
+  last_price?: number | null;
+  callback_percent: number;
+  suggested_stop?: number | null;
+  message?: string;
+  ticker?: BitgetMcpEnvelope;
 }
 
 export interface ChannelAdapterStatus {

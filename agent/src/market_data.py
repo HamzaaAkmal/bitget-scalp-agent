@@ -35,8 +35,8 @@ _SOURCE_PATTERNS = [
     # Korea: KOSPI (005930.KS) / KOSDAQ (247540.KQ), 6-digit codes. Served by
     # pykrx (KRX public data, no auth); registry falls back to Yahoo/yfinance.
     (re.compile(r"^\d{6}\.(KS|KQ)$", re.I), "pykrx"),
-    (re.compile(r"^[A-Z]+-(USD|USDT)$", re.I), "coinbase"),
-    (re.compile(r"^[A-Z]+/(USD|USDT)$", re.I), "coinbase"),
+    (re.compile(r"^[A-Z]+-(USD|USDT)$", re.I), "bitget"),
+    (re.compile(r"^[A-Z]+/(USD|USDT)$", re.I), "bitget"),
     # Forex pairs and metals (EUR/USD, XAU/USD, EURUSD.FX). mt5 is the head of
     # the forex chain and degrades to akshare/yfinance via the registry when no
     # local MT5 terminal is attached. The 3-letter quote cannot collide with
@@ -110,7 +110,7 @@ def fetch_market_data(
     When ``source="auto"`` (or any resolved source), if the chosen loader
     raises during :meth:`fetch` the call falls through to the next source in
     the market's :data:`backtest.loaders.registry.FALLBACK_CHAINS` (e.g. crypto
-    Coinbase -> local). At most ``max_fallback_attempts`` retries
+    Bitget -> Coinbase -> local). At most ``max_fallback_attempts`` retries
     are attempted before the symbol is recorded as ``_unresolved``.
     """
     from backtest.loaders.base import NoAvailableSourceError

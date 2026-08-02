@@ -42,7 +42,7 @@ _TRADING_DAYS = {
 # mt5 is a forex/CFD feed: 24x5 sessions → 260 trading days, 24h intraday bars.
 # US equity (yfinance-style): 6.5h sessions → 390 1m bars/day.
 # A-share equity (tushare-style): 4.0h sessions → 240 1m bars/day.
-# Crypto (Coinbase/OKX/CCXT-style): 24h sessions → 1440 1m bars/day.
+# Crypto (Bitget/Coinbase/OKX/CCXT-style): 24h sessions → 1440 1m bars/day.
 # Indian equity: 6.25h sessions → 375 1m bars/day.
 # Korean equity (pykrx): 6.5h sessions → 390 1m bars/day. The loader itself
 # serves daily bars only, so the intraday rows exist to keep the table complete
@@ -57,7 +57,7 @@ _BARS_PER_DAY = {
             "tushare": 240, "akshare": 240, "baostock": 240, "tencent": 240,
             "eastmoney": 240, "sina": 240, "mootdx": 240, "futu": 240,
             # crypto (24h)
-            "coinbase": 1440, "okx": 1440, "ccxt": 1440, "binance": 1440,
+            "bitget": 1440, "coinbase": 1440, "okx": 1440, "ccxt": 1440, "binance": 1440,
             # forex/CFD (24h intraday)
             "mt5": 1440,
             # Indian equity (6.25h session)
@@ -70,7 +70,7 @@ _BARS_PER_DAY = {
             "local": 78, "qveris": 78,
             "tushare": 48,  "akshare": 48,  "baostock": 48,  "tencent": 48,
             "eastmoney": 48,  "sina": 48,  "mootdx": 48,  "futu": 48,
-            "coinbase": 288, "okx": 288,  "ccxt": 288,  "binance": 288,
+            "bitget": 288, "coinbase": 288, "okx": 288,  "ccxt": 288,  "binance": 288,
             "mt5": 288,
             "india_broker": 75,
             "pykrx": 78,
@@ -80,7 +80,7 @@ _BARS_PER_DAY = {
             "local": 26, "qveris": 26,
             "tushare": 16,  "akshare": 16,  "baostock": 16,  "tencent": 16,
             "eastmoney": 16,  "sina": 16,  "mootdx": 16,  "futu": 16,
-            "coinbase": 96, "okx": 96,   "ccxt": 96,   "binance": 96,
+            "bitget": 96, "coinbase": 96, "okx": 96,   "ccxt": 96,   "binance": 96,
             "mt5": 96,
             "india_broker": 25,
             "pykrx": 26,
@@ -90,7 +90,7 @@ _BARS_PER_DAY = {
             "local": 13, "qveris": 13,
             "tushare": 8,   "akshare": 8,   "baostock": 8,   "tencent": 8,
             "eastmoney": 8,   "sina": 8,   "mootdx": 8,   "futu": 8,
-            "coinbase": 48, "okx": 48,   "ccxt": 48,   "binance": 48,
+            "bitget": 48, "coinbase": 48, "okx": 48,   "ccxt": 48,   "binance": 48,
             "mt5": 48,
             "india_broker": 13,
             "pykrx": 13,
@@ -100,7 +100,7 @@ _BARS_PER_DAY = {
             "local": 7, "qveris": 7,
             "tushare": 4,   "akshare": 4,   "baostock": 4,   "tencent": 4,
             "eastmoney": 4,   "sina": 4,   "mootdx": 4,   "futu": 4,
-            "coinbase": 24, "okx": 24,   "ccxt": 24,   "binance": 24,
+            "bitget": 24, "coinbase": 24, "okx": 24,   "ccxt": 24,   "binance": 24,
             "mt5": 24,
             "india_broker": 7,
             "pykrx": 7,
@@ -110,7 +110,7 @@ _BARS_PER_DAY = {
             "local": 2, "qveris": 2,
             "tushare": 1,   "akshare": 1,   "baostock": 1,   "tencent": 1,
             "eastmoney": 1,   "sina": 1,   "mootdx": 1,   "futu": 1,
-            "coinbase": 6, "okx": 6,    "ccxt": 6,    "binance": 6,
+            "bitget": 6, "coinbase": 6, "okx": 6,    "ccxt": 6,    "binance": 6,
             "mt5": 6,
             "india_broker": 2,
             "pykrx": 2,
@@ -120,7 +120,7 @@ _BARS_PER_DAY = {
             "local": 1, "qveris": 1,
             "tushare": 1,   "akshare": 1,   "baostock": 1,   "tencent": 1,
             "eastmoney": 1,   "sina": 1,   "mootdx": 1,   "futu": 1,
-            "coinbase": 1, "okx": 1,    "ccxt": 1,    "binance": 1,
+            "bitget": 1, "coinbase": 1, "okx": 1,    "ccxt": 1,    "binance": 1,
             "mt5": 1,
             "india_broker": 1,
             "pykrx": 1,

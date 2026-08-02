@@ -533,7 +533,7 @@ _MARKET_TO_SOURCE = {
     "hk_equity": "yfinance",
     "india_equity": "yahoo",
     "kr_equity": "pykrx",
-    "crypto": "coinbase",
+    "crypto": "bitget",
     "futures": "tushare",
     "fund": "tushare",
     "macro": "akshare",
@@ -548,7 +548,7 @@ def _detect_source(code: str) -> str:
         code: Ticker / symbol string.
 
     Returns:
-        Source name (tushare/coinbase/yfinance/akshare).
+        Source name (tushare/bitget/yfinance/akshare).
     """
     market = _detect_market(code)
     return _MARKET_TO_SOURCE.get(market, "tushare")
@@ -590,7 +590,7 @@ def _get_loader(source: str):
     """Return a DataLoader class for a source name, with fallback.
 
     Args:
-        source: Source name (tushare/coinbase/yfinance/akshare/ccxt).
+        source: Source name (tushare/bitget/yfinance/akshare/ccxt).
 
     Returns:
         DataLoader class.
@@ -614,7 +614,7 @@ def _normalize_codes(codes: List[str], source: str) -> List[str]:
     Returns:
         Normalized codes.
     """
-    if source in ("coinbase", "okx", "ccxt"):
+    if source in ("bitget", "coinbase", "okx", "ccxt", "binance"):
         return [c.replace("/", "-").upper() for c in codes]
     return codes
 
@@ -982,10 +982,10 @@ def _create_market_engine(source: str, config: dict, codes: List[str]):
 
     Routing priority:
       1. Detect market type from symbol patterns (futures, forex, etc.)
-      2. Fall back to source-based routing (coinbase->crypto, tushare->china_a, etc.)
+      2. Fall back to source-based routing (bitget->crypto, tushare->china_a, etc.)
 
     Args:
-        source: Data source (coinbase/ccxt/tushare/akshare/yfinance).
+        source: Data source (bitget/coinbase/ccxt/tushare/akshare/yfinance).
         config: Backtest configuration.
         codes: Instrument codes.
 
@@ -1028,7 +1028,7 @@ def _create_market_engine(source: str, config: dict, codes: List[str]):
         return KoreaEquityEngine(config)
 
     # Original routing (Wave 1)
-    if source in ("coinbase", "okx", "ccxt"):
+    if source in ("bitget", "coinbase", "okx", "ccxt", "binance"):
         from backtest.engines.crypto import CryptoEngine
         return CryptoEngine(config)
     elif source in ("tushare", "akshare"):

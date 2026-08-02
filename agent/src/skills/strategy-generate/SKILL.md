@@ -84,16 +84,16 @@ Self-check after writing `signal_engine.py`:
 - 6-digit China A-share codes → automatically append suffix: codes starting with `600/601/603` → `.SH`, all others → `.SZ`
 - US stocks: uppercase letters + `.US`, such as `AAPL.US` (`yfinance` converts automatically)
 - Hong Kong stocks: digits + `.HK`, such as `700.HK` (`yfinance` converts automatically)
-- Cryptocurrencies: `BTC-USDT` format (Coinbase spot data, **must use the hyphen `-`, not slash `/`**)
+- Cryptocurrencies: `BTC-USDT` format (Bitget data, **must use the hyphen `-`, not slash `/`**)
   - The user may write `BTC/USDT`, but `config.json` must use `"BTC-USDT"`
 
 ## Cryptocurrency Notes
 
 - **Code format**: must be `XXX-USDT` (uppercase + hyphen), such as `BTC-USDT` and `ETH-USDT`
-- **source**: must be set to `"coinbase"`
-- **extra_fields**: must be `null` (Coinbase market data does not include fundamentals)
+- **source**: must be set to `"bitget"`
+- **extra_fields**: must be `null` (Bitget market data does not include fundamentals)
 - **Data format**: `DataLoader` has already normalized the output to match China A-shares exactly: `open, high, low, close, volume` + `DatetimeIndex`
-- **No special handling needed in strategy code**: `signal_engine.py` should be written the same way as for China A-shares; do not add extra data conversion for Coinbase
+- **No special handling needed in strategy code**: `signal_engine.py` should be written the same way as for China A-shares; do not add extra data conversion for Bitget
 
 ## Market Detection and Data Sources
 
@@ -102,7 +102,7 @@ Self-check after writing `signal_engine.py`:
 | `^\d{6}\.(SZ\|SH\|BJ)$` | China A-shares | tushare | `extra_fields`: pe, pb, pe_ttm, ps_ttm, dv_ttm, total_mv, circ_mv, roe; `fundamental_fields`: income/balancesheet/cashflow/fina_indicator |
 | `^[A-Z]+\.US$` | US stocks | yfinance | - |
 | `^\d{3,5}\.HK$` | Hong Kong stocks | yfinance | - |
-| `^[A-Z]+-USDT$` | Cryptocurrency | coinbase | Coinbase maps USDT quote symbols to USD spot products when needed. |
+| `^[A-Z]+-USDT$` | Cryptocurrency | bitget | Bitget MCP maps project crypto symbols to exchange symbols such as `BTCUSDT`. |
 
 **`extra_fields` selection logic**: only China A-shares (`tushare`) support daily valuation fields. If the strategy needs `PE/PB/ROE` and similar daily_basic fields, specify them in `config.json.extra_fields` and `DataLoader` will retrieve them automatically. Hong Kong stocks, US stocks, and crypto do not support `extra_fields`.
 
@@ -128,8 +128,8 @@ Self-check after writing `signal_engine.py`:
 }
 ```
 
-- `source`: `"auto"` (recommended, auto-select by code format) / `"tushare"` / `"yfinance"` / `"coinbase"` / `"akshare"` / `"ccxt"`
-  - `"auto"` supports mixed instruments. For example, `["000001.SZ", "BTC-USDT"]` will be automatically routed to `tushare` and `coinbase`
+- `source`: `"auto"` (recommended, auto-select by code format) / `"tushare"` / `"yfinance"` / `"bitget"` / `"coinbase"` / `"akshare"` / `"ccxt"`
+  - `"auto"` supports mixed instruments. For example, `["000001.SZ", "BTC-USDT"]` will be automatically routed to `tushare` and `bitget`
   - Futures codes (e.g. `"IF2406.CFFEX"`, `"ESZ4"`) and forex pairs (e.g. `"EUR/USD"`) are also auto-routed
 - `interval`: candlestick interval, default `"1D"`. Supported values: `"1m"` / `"5m"` / `"15m"` / `"30m"` / `"1H"` / `"4H"` / `"1D"`
   - The annualization factor for minute backtests is inferred automatically from `source` (252 trading days for China A-shares, 365 calendar days for crypto)

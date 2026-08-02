@@ -32,6 +32,7 @@ _registered = False
 # ``test_valid_sources_covers_all_registered_loaders`` enforces full coverage.
 VALID_SOURCES: set[str] = {
     "tushare",
+    "bitget",
     "coinbase",
     "okx",
     "binance",
@@ -83,6 +84,7 @@ def _ensure_registered() -> None:
 
     _loader_modules = [
         "backtest.loaders.tushare",
+        "backtest.loaders.bitget_loader",
         "backtest.loaders.coinbase_loader",
         "backtest.loaders.okx",
         "backtest.loaders.binance_loader",
@@ -141,8 +143,9 @@ FALLBACK_CHAINS: dict[str, list[str]] = {
     "hk_equity": ["eastmoney", "yahoo", "futu", "yfinance", "akshare", "longbridge", "local"],
     "india_equity": ["yahoo", "yfinance", "india_broker", "local"],
     "kr_equity":   ["pykrx", "yahoo", "yfinance", "local"],
-    # Coinbase is the public crypto market-data provider used by default.
-    "crypto":    ["coinbase", "local"],
+    # Bitget MCP is the primary crypto market-data provider; Coinbase remains
+    # as a degraded public-data fallback for legacy compatibility.
+    "crypto":    ["bitget", "coinbase", "local"],
     "futures":   ["tushare", "akshare", "local"],
     "fund":      ["tushare", "akshare", "local"],
     "macro":     ["akshare", "tushare", "local"],
