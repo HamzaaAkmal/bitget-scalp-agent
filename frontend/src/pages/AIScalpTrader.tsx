@@ -45,6 +45,7 @@ export function AIScalpTrader() {
   const [parsedPolicy, setParsedPolicy] = useState<SessionPolicy | null>(null);
   const [activeSession, setActiveSession] = useState<ScalpSessionData | null>(null);
   const [activeTrade, setActiveTrade] = useState<ScalpTrade | null>(null);
+  const [recentTrades, setRecentTrades] = useState<ScalpTrade[]>([]);
   const [candidates, setCandidates] = useState<ScalpCandidate[]>([]);
   const [funnelCounts, setFunnelCounts] = useState({
     all_markets: 126,
@@ -59,8 +60,9 @@ export function AIScalpTrader() {
   const [emergencyActive, setEmergencyActive] = useState(false);
   const [autonomyMode, setAutonomyMode] = useState<"copilot" | "guarded_autopilot" | "full_autonomous">("guarded_autopilot");
 
-  // Initial candidate scan & market regime fetch
+  // Load active sessions & market candidates on mount
   useEffect(() => {
+    loadActiveSession();
     loadMarketData();
     const interval = setInterval(loadMarketData, 8000);
     return () => clearInterval(interval);
@@ -74,7 +76,7 @@ export function AIScalpTrader() {
     }).catch(() => {});
   }, [selectedSymbol]);
 
-  // Session status poll
+  // Session status & active trade poll
   useEffect(() => {
     if (!activeSession || activeSession.status !== "ACTIVE") return;
     const sessionInterval = setInterval(async () => {
@@ -83,15 +85,40 @@ export function AIScalpTrader() {
         setActiveSession(res.session);
         if (res.active_trade) {
           setActiveTrade(res.active_trade);
-        } else {
-          setActiveTrade(null);
+        }
+        if (res.recent_trades) {
+          setRecentTrades(res.recent_trades);
         }
       } catch (err) {
         /* best-effort poll */
       }
     }, 2000);
     return () => clearInterval(sessionInterval);
-  }, [activeSession]);
+  }, [activeSession?.session_id, activeSession?.status]);
+
+  const loadActiveSession = async () => {
+    try {
+      const res = await scalpApi.getActiveSessions();
+      let fallbackTrade: ScalpTrade | null = res.latest_trade || null;
+      if (res.active_sessions && res.active_sessions.length > 0) {
+        const active = res.active_sessions[0];
+        setActiveSession(active);
+        const detail = await scalpApi.getSessionDetail(active.session_id);
+        setActiveSession(detail.session);
+        if (detail.active_trade) {
+          fallbackTrade = detail.active_trade;
+        }
+        if (detail.recent_trades) {
+          setRecentTrades(detail.recent_trades);
+        }
+      }
+      if (fallbackTrade) {
+        setActiveTrade(fallbackTrade);
+      }
+    } catch (err) {
+      /* best-effort fallback */
+    }
+  };
 
   const loadMarketData = async () => {
     try {
@@ -149,7 +176,6 @@ export function AIScalpTrader() {
     try {
       const res = await scalpApi.stopSession(activeSession.session_id);
       setActiveSession(res.session);
-      setActiveTrade(null);
       toast.info("Scalp Session Stopped.");
     } catch (err: any) {
       toast.error(err.message || "Failed to stop session");
@@ -163,7 +189,6 @@ export function AIScalpTrader() {
       if (activeSession) {
         setActiveSession({ ...activeSession, status: "EMERGENCY_STOPPED" });
       }
-      setActiveTrade(null);
       toast.error(`🚨 EMERGENCY STOP ACTIVATED: ${res.message}`);
     } catch (err: any) {
       toast.error(err.message || "Emergency stop failed");
@@ -218,22 +243,27 @@ export function AIScalpTrader() {
             <span>Regime: {regimeInfo?.primary_regime || "STRONG_DOWNTREND"}</span>
           </div>
 
-          {activeSession && (
-            <div
-              className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border",
-                activeSession.status === "ACTIVE"
-                  ? "bg-emerald-500/15 text-emerald-500 border-emerald-500/30"
-                  : "bg-muted text-muted-foreground border-border"
-              )}
-            >
-              <span className="relative flex h-2 w-2">
+          <div
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border",
+              activeSession?.status === "ACTIVE"
+                ? "bg-emerald-500/15 text-emerald-500 border-emerald-500/30"
+                : "bg-muted text-muted-foreground border-border"
+            )}
+          >
+            <span className="relative flex h-2 w-2">
+              {activeSession?.status === "ACTIVE" && (
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-              <span>{activeSession.status}</span>
-            </div>
-          )}
+              )}
+              <span
+                className={cn(
+                  "relative inline-flex rounded-full h-2 w-2",
+                  activeSession?.status === "ACTIVE" ? "bg-emerald-500" : "bg-muted-foreground"
+                )}
+              ></span>
+            </span>
+            <span>{activeSession?.status || "STOPPED"}</span>
+          </div>
 
           <button
             onClick={handleEmergencyStop}
@@ -435,73 +465,29 @@ export function AIScalpTrader() {
           )}
         </div>
 
-        {/* 3. Session Target & Risk Progress Bar */}
-        {activeSession && (
-          <div className="p-5 rounded-xl bg-card border border-border/80 space-y-4 shadow-sm">
-            <div className="flex items-center justify-between text-xs font-semibold">
-              <span>Session Target & Risk Limits</span>
-              <span className="text-muted-foreground">Session ID: {activeSession.session_id}</span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">Target Profit (+{activeSession.policy.target_profit} USDT)</span>
-                  <span className="font-semibold text-emerald-500">
-                    {activeSession.session_pnl_usdt >= 0 ? `+${activeSession.session_pnl_usdt.toFixed(2)}` : "0.00"} USDT
-                  </span>
-                </div>
-                <div className="h-2 rounded-full bg-muted overflow-hidden">
-                  <div
-                    className="h-full bg-emerald-500 transition-all duration-300"
-                    style={{
-                      width: `${Math.min(100, Math.max(0, (activeSession.session_pnl_usdt / activeSession.policy.target_profit) * 100))}%`,
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">Max Loss Limit (-{activeSession.policy.maximum_session_loss} USDT)</span>
-                  <span className="font-semibold text-destructive">
-                    {activeSession.session_pnl_usdt < 0 ? `${activeSession.session_pnl_usdt.toFixed(2)}` : "0.00"} USDT
-                  </span>
-                </div>
-                <div className="h-2 rounded-full bg-muted overflow-hidden">
-                  <div
-                    className="h-full bg-destructive transition-all duration-300"
-                    style={{
-                      width: `${Math.min(100, Math.max(0, (Math.abs(Math.min(0, activeSession.session_pnl_usdt)) / activeSession.policy.maximum_session_loss) * 100))}%`,
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* 4. Active Position Panel (if open) */}
-        {activeTrade && (
-          <div className="p-5 rounded-xl bg-card border-2 border-primary/50 space-y-4 shadow-md">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Flame className="h-5 w-5 text-primary animate-bounce" />
-                <h3 className="font-bold text-base">Active Futures Position</h3>
+        {/* 3. ALWAYS VISIBLE: Active Positions & Live Trade Desk */}
+        <div className="p-5 rounded-xl bg-card border-2 border-primary/40 space-y-4 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Flame className="h-5 w-5 text-primary animate-bounce" />
+              <h3 className="font-bold text-base">Active Futures Position & Live PnL Desk</h3>
+              {activeTrade && (
                 <span
                   className={cn(
-                    "px-2 py-0.5 text-xs font-bold rounded",
+                    "px-2.5 py-0.5 text-xs font-bold rounded",
                     activeTrade.direction === "LONG"
                       ? "bg-emerald-500/15 text-emerald-500"
                       : "bg-destructive/15 text-destructive"
                   )}
                 >
-                  {activeTrade.direction} {activeTrade.leverage}x
+                  {activeTrade.symbol} {activeTrade.direction} {activeTrade.leverage}x Isolated
                 </span>
-              </div>
+              )}
+            </div>
 
+            {activeTrade && (
               <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">ID: {activeTrade.trade_id}</span>
+                <span className="text-xs text-muted-foreground">Trade ID: {activeTrade.trade_id}</span>
                 <button
                   onClick={async () => {
                     await scalpApi.closePosition(activeTrade.trade_id);
@@ -512,41 +498,236 @@ export function AIScalpTrader() {
                   Close Position
                 </button>
               </div>
+            )}
+          </div>
+
+          {activeTrade ? (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                <div className="p-3 rounded bg-muted/40 border border-border/50">
+                  <div className="text-[10px] text-muted-foreground">Entry Price</div>
+                  <div className="font-semibold text-sm">${activeTrade.entry_price?.toLocaleString()}</div>
+                </div>
+                <div className="p-3 rounded bg-muted/40 border border-border/50">
+                  <div className="text-[10px] text-muted-foreground">Current Mark Price</div>
+                  <div className="font-semibold text-sm">${activeTrade.current_price?.toLocaleString()}</div>
+                </div>
+                <div className="p-3 rounded bg-muted/40 border border-border/50">
+                  <div className="text-[10px] text-muted-foreground">Unrealized PnL ($ & ROE %)</div>
+                  <div
+                    className={cn(
+                      "font-bold text-base",
+                      (activeTrade.unrealized_pnl_usdt || 0) >= 0 ? "text-emerald-500" : "text-destructive"
+                    )}
+                  >
+                    {(activeTrade.unrealized_pnl_usdt || 0) >= 0 ? "+" : ""}
+                    {(activeTrade.unrealized_pnl_usdt || 0).toFixed(4)} USDT (
+                    {(activeTrade.unrealized_pnl_pct || 0).toFixed(2)}%)
+                  </div>
+                </div>
+                <div className="p-3 rounded bg-muted/40 border border-border/50">
+                  <div className="text-[10px] text-muted-foreground">Native Take-Profit / Stop-Loss</div>
+                  <div className="font-semibold text-sm">
+                    <span className="text-emerald-500">${activeTrade.take_profit_price}</span> /{" "}
+                    <span className="text-destructive">${activeTrade.stop_loss_price}</span>
+                  </div>
+                </div>
+              </div>
+
+              {activeTrade.proposal?.why_this_trade && (
+                <div className="p-3 rounded bg-muted/30 border border-border/40 text-xs space-y-1">
+                  <div className="font-semibold text-foreground flex items-center justify-between">
+                    <span>Strategy Rationale & Expected Edge</span>
+                    <span className="text-emerald-500 font-bold">
+                      {activeTrade.proposal.why_this_trade.expected_net_edge}
+                    </span>
+                  </div>
+                  <p className="text-muted-foreground text-[11px]">
+                    {activeTrade.proposal.strategy_name} ({activeTrade.proposal.market_regime}) —{" "}
+                    {activeTrade.proposal.why_this_trade.market_selection}
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : activeSession && activeSession.status === "ACTIVE" ? (
+            <div className="p-4 rounded bg-muted/30 border border-border/40 flex flex-col gap-2 text-xs">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <RefreshCw className="h-4 w-4 text-primary animate-spin" />
+                  <span className="font-semibold text-foreground">
+                    Session is ACTIVE — Autonomous Scanner evaluating Bitget futures candidates...
+                  </span>
+                </div>
+                <span className="text-muted-foreground text-[11px]">Scanning 6 liquid candidates</span>
+              </div>
+              {activeSession.latest_cycle && (
+                <div className="text-[11px] text-muted-foreground pl-6 mt-1 border-l-2 border-primary/20 ml-1">
+                  <span className="font-semibold text-foreground">{activeSession.latest_cycle.symbol}:</span>{' '}
+                  {activeSession.latest_cycle.status === 'vetoed' ? (
+                    <span className="text-destructive">{activeSession.latest_cycle.reason}</span>
+                  ) : activeSession.latest_cycle.status === 'no_trade' ? (
+                    <span>{activeSession.latest_cycle.reason}</span>
+                  ) : activeSession.latest_cycle.status === 'risk_rejected' ? (
+                    <span className="text-orange-500">Risk check failed: {activeSession.latest_cycle.reason}</span>
+                  ) : activeSession.latest_cycle.status === 'error' ? (
+                    <span className="text-destructive font-bold">Execution Error: {activeSession.latest_cycle.message || "Failed to execute"}</span>
+                  ) : (
+                    <span>{activeSession.latest_cycle.status}</span>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="p-4 rounded bg-muted/30 border border-border/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+              <div>
+                <span className="font-semibold text-foreground">No Active Session Running</span>
+                <p className="text-muted-foreground text-[11px] mt-0.5">
+                  Click "Start Session" above to launch autonomous multi-agent scalp trading on Bitget.
+                </p>
+              </div>
+              <button
+                onClick={handleStartSession}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground font-bold shadow hover:opacity-90 transition-all shrink-0"
+              >
+                <Play className="h-3.5 w-3.5 fill-current" />
+                <span>Start Autonomous Session</span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* 4. Session Target & Realized Performance */}
+        <div className="p-5 rounded-xl bg-card border border-border/80 space-y-4 shadow-sm">
+          <div className="flex items-center justify-between text-xs font-semibold">
+            <div className="flex items-center gap-3">
+              <span>Session Target & Realized Performance</span>
+              {activeSession && activeSession.stats && (
+                <span className="text-[11px] font-normal text-muted-foreground">
+                  Trades: {activeSession.stats.total_trades} | Win Rate: {activeSession.stats.win_rate_pct}%
+                </span>
+              )}
+            </div>
+            <span className="text-muted-foreground">
+              Session ID: {activeSession?.session_id || "ses_idle"}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">
+                  Target Profit (+{activeSession?.policy?.target_profit || 5} USDT)
+                </span>
+                <span className="font-semibold text-emerald-500">
+                  {(activeSession?.session_pnl_usdt || 0) >= 0
+                    ? `+${(activeSession?.session_pnl_usdt || 0).toFixed(2)}`
+                    : "0.00"}{" "}
+                  USDT
+                </span>
+              </div>
+              <div className="h-2 rounded-full bg-muted overflow-hidden">
+                <div
+                  className="h-full bg-emerald-500 transition-all duration-300"
+                  style={{
+                    width: `${Math.min(
+                      100,
+                      Math.max(
+                        0,
+                        ((activeSession?.session_pnl_usdt || 0) /
+                          (activeSession?.policy?.target_profit || 5)) *
+                          100
+                      )
+                    )}%`,
+                  }}
+                />
+              </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-              <div className="p-2.5 rounded bg-muted/40 border border-border/50">
-                <div className="text-[10px] text-muted-foreground">Entry Price</div>
-                <div className="font-semibold">${activeTrade.entry_price.toLocaleString()}</div>
+            <div className="space-y-1.5">
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">
+                  Max Loss Limit (-{activeSession?.policy?.maximum_session_loss || 2} USDT)
+                </span>
+                <span className="font-semibold text-destructive">
+                  {(activeSession?.session_pnl_usdt || 0) < 0
+                    ? `${(activeSession?.session_pnl_usdt || 0).toFixed(2)}`
+                    : "0.00"}{" "}
+                  USDT
+                </span>
               </div>
-              <div className="p-2.5 rounded bg-muted/40 border border-border/50">
-                <div className="text-[10px] text-muted-foreground">Current Price</div>
-                <div className="font-semibold">${activeTrade.current_price.toLocaleString()}</div>
-              </div>
-              <div className="p-2.5 rounded bg-muted/40 border border-border/50">
-                <div className="text-[10px] text-muted-foreground">Unrealized PnL</div>
+              <div className="h-2 rounded-full bg-muted overflow-hidden">
                 <div
-                  className={cn(
-                    "font-bold text-sm",
-                    activeTrade.unrealized_pnl_usdt >= 0 ? "text-emerald-500" : "text-destructive"
-                  )}
-                >
-                  {activeTrade.unrealized_pnl_usdt >= 0 ? "+" : ""}
-                  {activeTrade.unrealized_pnl_usdt.toFixed(2)} USDT ({activeTrade.unrealized_pnl_pct.toFixed(1)}%)
-                </div>
+                  className="h-full bg-destructive transition-all duration-300"
+                  style={{
+                    width: `${Math.min(
+                      100,
+                      Math.max(
+                        0,
+                        (Math.abs(Math.min(0, activeSession?.session_pnl_usdt || 0)) /
+                          (activeSession?.policy?.maximum_session_loss || 2)) *
+                          100
+                      )
+                    )}%`,
+                  }}
+                />
               </div>
-              <div className="p-2.5 rounded bg-muted/40 border border-border/50">
-                <div className="text-[10px] text-muted-foreground">Native TP / SL</div>
-                <div className="font-semibold">
-                  <span className="text-emerald-500">${activeTrade.take_profit_price}</span> /{" "}
-                  <span className="text-destructive">${activeTrade.stop_loss_price}</span>
-                </div>
-              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 5. Completed Trades History (if available) */}
+        {recentTrades && recentTrades.length > 0 && (
+          <div className="p-5 rounded-xl bg-card border border-border/80 space-y-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-base">Completed Session Trades</h3>
+              <span className="text-xs text-muted-foreground">{recentTrades.length} trades recorded</span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-border/60 text-muted-foreground font-medium">
+                    <th className="pb-2">Symbol</th>
+                    <th className="pb-2">Side</th>
+                    <th className="pb-2">Entry Price</th>
+                    <th className="pb-2">Exit Price</th>
+                    <th className="pb-2">Net PnL</th>
+                    <th className="pb-2">Status</th>
+                    <th className="pb-2 text-right">Reason</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/40">
+                  {recentTrades.map((t) => (
+                    <tr key={t.trade_id} className="hover:bg-muted/40">
+                      <td className="py-2.5 font-semibold">{t.symbol}</td>
+                      <td className="py-2.5">
+                        <span
+                          className={cn(
+                            "px-2 py-0.5 text-[10px] font-bold rounded",
+                            t.direction === "LONG" ? "bg-emerald-500/15 text-emerald-500" : "bg-destructive/15 text-destructive"
+                          )}
+                        >
+                          {t.direction} {t.leverage}x
+                        </span>
+                      </td>
+                      <td className="py-2.5">${t.entry_price}</td>
+                      <td className="py-2.5">${t.exit_price || t.current_price}</td>
+                      <td className="py-2.5 font-bold">
+                        <span className={t.net_pnl_usdt >= 0 ? "text-emerald-500" : "text-destructive"}>
+                          {t.net_pnl_usdt >= 0 ? "+" : ""}{t.net_pnl_usdt?.toFixed(4)} USDT
+                        </span>
+                      </td>
+                      <td className="py-2.5 font-medium">{t.status}</td>
+                      <td className="py-2.5 text-right text-muted-foreground">{t.exit_reason || "OPEN"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
 
-        {/* 5. Quantitative Opportunity Scanner */}
+        {/* 6. Quantitative Opportunity Scanner */}
         <div className="p-5 rounded-xl bg-card border border-border/80 space-y-4 shadow-sm">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -588,8 +769,8 @@ export function AIScalpTrader() {
                       <img src={cand.coin_icon} alt="" className="h-5 w-5 rounded-full" />
                       <span className="font-semibold">{cand.symbol}</span>
                     </td>
-                    <td className="py-3">${cand.price_usdt.toLocaleString()}</td>
-                    <td className="py-3">${(cand.volume_24h_usdt / 1000000).toFixed(1)}M</td>
+                    <td className="py-3">${cand.price_usdt?.toLocaleString()}</td>
+                    <td className="py-3">${((cand.volume_24h_usdt || 0) / 1000000).toFixed(1)}M</td>
                     <td className="py-3">{cand.bid_ask_spread_bps} bps</td>
                     <td className="py-3">
                       <div className="flex items-center gap-2">
@@ -625,7 +806,7 @@ export function AIScalpTrader() {
           </div>
         </div>
 
-        {/* 6. Dynamic Market Analysis Detail (for selected symbol) */}
+        {/* 7. Dynamic Market Analysis Detail (for selected symbol) */}
         {symbolDetail && (
           <div className="p-5 rounded-xl bg-card border border-border/80 space-y-4 shadow-sm">
             <div className="flex items-center justify-between">

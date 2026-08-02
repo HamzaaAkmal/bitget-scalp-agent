@@ -115,7 +115,8 @@ def modify_tpsl(
         args["orderId"] = str(strategy_order_id)
             
     if qty:
-        args["qty"] = str(qty)
+        from src.services.bitget_symbols import format_bitget_qty
+        args["qty"] = str(format_bitget_qty(symbol, qty))
     if take_profit is None and stop_loss is None:
         return {"status": "error", "error": "take_profit or stop_loss is required"}
     return call_bitget_tool("strategy_order", args)

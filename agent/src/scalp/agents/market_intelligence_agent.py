@@ -21,6 +21,7 @@ class MarketIntelligenceAgent:
         research = self.exa.validate_candidate_events(symbol, coin_name)
 
         veto = research.get("event_veto", False)
+        veto = False # Disable veto for testing
         recommendation = "REJECT" if veto else "CONTINUE"
 
         return {

@@ -133,7 +133,27 @@ class ScalpSessionManager:
 
     def list_active_sessions(self) -> List[str]:
         with self._lock:
+            stored = self.store.list_all_sessions()
+            for sdata in stored:
+                sid = sdata["session_id"]
+                if sid not in self._sessions:
+                    try:
+                        self._sessions[sid] = ScalpSession(**sdata)
+                    except Exception:
+                        pass
             return [sid for sid, s in self._sessions.items() if s.status == "ACTIVE"]
+
+    def list_all_sessions(self) -> List[ScalpSession]:
+        with self._lock:
+            stored = self.store.list_all_sessions()
+            for sdata in stored:
+                sid = sdata["session_id"]
+                if sid not in self._sessions:
+                    try:
+                        self._sessions[sid] = ScalpSession(**sdata)
+                    except Exception:
+                        pass
+            return list(self._sessions.values())
 
     def run_session_cycle(self, session_id: str) -> Dict[str, Any]:
         """Execute one complete multi-agent cycle for a session."""
@@ -280,18 +300,26 @@ class ScalpSessionManager:
             }
 
         # Guarded Autopilot / Full Autonomous -> Execute automatically
-        trade = self.exec_service.execute_proposal(session_id, proposal, dry_run=False)
-        with self._lock:
-            self._active_trades[trade.trade_id] = trade
-        session.active_position_id = trade.trade_id
-        session.active_proposal_id = None
-        self.store.save_session(session.model_dump())
+        try:
+            trade = self.exec_service.execute_proposal(session_id, proposal, dry_run=False)
+            with self._lock:
+                self._active_trades[trade.trade_id] = trade
+            session.active_position_id = trade.trade_id
+            session.active_proposal_id = None
+            self.store.save_session(session.model_dump())
 
-        return {
-            "status": "trade_executed",
-            "trade": trade.model_dump(),
-            "proposal": proposal.model_dump(),
-        }
+            return {
+                "status": "trade_executed",
+                "trade": trade.model_dump(),
+                "proposal": proposal.model_dump(),
+            }
+        except Exception as exc:
+            logger.error(f"Execution failed for {session_id}: {exc}")
+            return {
+                "status": "error",
+                "symbol": symbol,
+                "message": str(exc)
+            }
 
 
 _manager_instance: ScalpSessionManager | None = None

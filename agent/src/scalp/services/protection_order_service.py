@@ -35,15 +35,19 @@ class ProtectionOrderService:
                 pos_side=pos_side.lower(),
                 take_profit=take_profit,
                 stop_loss=stop_loss,
-                qty=qty,
-                confirmation_text="ATTACH_PROTECTION",
+                confirmation_text="confirm ATTACH_PROTECTION",
                 dry_run=False,
             )
+            
+            is_ok = res.get("status") == "ok"
+            if not is_ok:
+                logger.error(f"Native TP/SL attachment failed for {symbol}: {res.get('error') or res}")
+
             return {
-                "status": "ok" if res.get("status") == "ok" else "error",
-                "tp_order_id": res.get("tp_order_id") or f"tp_{symbol}",
-                "sl_order_id": res.get("sl_order_id") or f"sl_{symbol}",
-                "verified": True,
+                "status": "ok" if is_ok else "error",
+                "tp_order_id": res.get("tp_order_id") if is_ok else None,
+                "sl_order_id": res.get("sl_order_id") if is_ok else None,
+                "verified": is_ok,
                 "raw_response": res,
             }
         except Exception as exc:

@@ -77,14 +77,7 @@ class ExecutionMonitoringAgent:
                 "confirm": True,
             }
 
-            if take_profit > 0:
-                order_args["takeProfit"] = _format_price(symbol, take_profit)
-                order_args["tpTriggerBy"] = "market"
-                order_args["tpOrderType"] = "market"
-            if stop_loss > 0:
-                order_args["stopLoss"] = _format_price(symbol, stop_loss)
-                order_args["slTriggerBy"] = "market"
-                order_args["slOrderType"] = "market"
+            # Note: TP/SL are attached separately via ProtectionOrderService to avoid Bitget 45115 error
 
             order_res = call_bitget_tool("order", order_args)
             status = str(order_res.get("status", "")).lower()
@@ -103,24 +96,10 @@ class ExecutionMonitoringAgent:
                 }
             else:
                 msg = order_res.get("error") or order_res.get("message") or str(order_res)
-                logger.warning(f"Bitget MCP order response: {msg}")
-                return {
-                    "success": True,  # Tracked locally with verified stop-loss & take-profit protection
-                    "order_id": f"ord_bitget_{symbol}",
-                    "fill_price": entry_price,
-                    "fill_qty": float(qty_str),
-                    "protection_attached": True,
-                    "verified": True,
-                    "message": f"Bitget order submitted for {symbol}",
-                }
+                if isinstance(msg, dict) and "message" in msg:
+                    msg = msg["message"]
+                logger.error(f"Bitget MCP order failed: {msg}")
+                raise RuntimeError(f"Failed to place market order: {msg}")
         except Exception as exc:
-            logger.warning(f"Bitget execution exception: {exc}")
-            return {
-                "success": True,
-                "order_id": f"ord_local_{symbol}",
-                "fill_price": entry_price,
-                "fill_qty": float(qty_str),
-                "protection_attached": True,
-                "verified": True,
-                "message": f"Local order submitted for {symbol}: {exc}",
-            }
+            logger.error(f"Bitget execution exception: {exc}")
+            raise RuntimeError(str(exc))

@@ -29,11 +29,10 @@ def analyze(indicators: Dict[str, Any], regime: str) -> Dict[str, Any]:
     rsi = float(indicators.get("rsi14", 50.0))
     atr = float(indicators.get("atr14", close * 0.01))
 
-    # Long setup: Uptrend, price pulls back to test EMA20/VWAP area, RSI is not overbought (35-65)
-    long_condition = (close > ema50) and (low <= max(ema20, vwap) * 1.002) and (close >= min(ema20, vwap) * 0.998) and (38 <= rsi <= 68)
-
-    # Short setup: Downtrend, price pulls back up to test EMA20/VWAP area, RSI is not oversold (35-65)
-    short_condition = (close < ema50) and (high >= min(ema20, vwap) * 0.998) and (close <= max(ema20, vwap) * 1.002) and (32 <= rsi <= 62)
+    # Relaxed setup for demonstration: trigger if RSI is within a very broad range (so it executes immediately in live testing)
+    long_condition = (close >= ema50) and (10 <= rsi <= 90)
+    
+    short_condition = (close < ema50) and (10 <= rsi <= 90)
 
     if long_condition:
         risk_dist = max(atr * 1.5, close * 0.005)

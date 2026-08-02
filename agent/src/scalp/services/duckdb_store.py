@@ -201,6 +201,42 @@ class ScalpDuckDBStore:
         finally:
             conn.close()
 
+    def list_all_sessions(self) -> List[Dict[str, Any]]:
+        conn = self._get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT session_id, user_mission, status, starting_capital, current_capital, session_pnl, policy_json, stats_json, created_at, updated_at FROM scalp_sessions ORDER BY created_at DESC")
+            rows = cursor.fetchall()
+            result = []
+            for row in rows:
+                result.append({
+                    "session_id": row[0],
+                    "user_mission": row[1],
+                    "status": row[2],
+                    "starting_capital_usdt": row[3],
+                    "current_capital_usdt": row[4],
+                    "session_pnl_usdt": row[5],
+                    "policy": json.loads(row[6]) if row[6] else {},
+                    "stats": json.loads(row[7]) if row[7] else {},
+                    "created_at": row[8],
+                    "updated_at": row[9],
+                })
+            return result
+        finally:
+            conn.close()
+
+    def get_latest_trade(self) -> Optional[Dict[str, Any]]:
+        conn = self._get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT trade_json FROM scalp_trades ORDER BY created_at DESC LIMIT 1")
+            row = cursor.fetchone()
+            if row and row[0]:
+                return json.loads(row[0])
+            return None
+        finally:
+            conn.close()
+
     def save_audit(self, audit_id: str, session_id: str, action_type: str, actor: str, data: Dict[str, Any], timestamp: str) -> None:
         conn = self._get_connection()
         try:

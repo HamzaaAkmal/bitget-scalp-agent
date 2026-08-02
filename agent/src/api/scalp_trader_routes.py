@@ -62,7 +62,12 @@ def register_scalp_routes(app: FastAPI) -> None:
         mgr = get_session_manager()
         active_ids = mgr.list_active_sessions()
         sessions = [mgr.get_session(sid).model_dump() for sid in active_ids if mgr.get_session(sid)]
-        return {"status": "ok", "active_sessions": sessions}
+        if not sessions:
+            all_s = mgr.list_all_sessions()
+            if all_s:
+                sessions = [all_s[0].model_dump()]
+        latest_trade = mgr.store.get_latest_trade()
+        return {"status": "ok", "active_sessions": sessions, "latest_trade": latest_trade}
 
     @app.post("/scalp/sessions", dependencies=deps)
     async def create_session(body: CreateSessionRequest) -> Dict[str, Any]:
@@ -100,13 +105,27 @@ def register_scalp_routes(app: FastAPI) -> None:
         active_trade = None
         if session.active_position_id:
             trade = get_session_manager()._active_trades.get(session.active_position_id)
+            if not trade:
+                stored_trades = get_session_manager().store.get_session_trades(session_id)
+                for st in stored_trades:
+                    if st.get("trade_id") == session.active_position_id:
+                        from src.scalp.models.scalp_trade import ScalpTrade
+                        from src.scalp.services.scalp_position_monitor import ScalpPositionMonitor
+                        trade_obj = ScalpTrade(**st)
+                        trade_obj = ScalpPositionMonitor.update_position(trade_obj)
+                        get_session_manager()._active_trades[session.active_position_id] = trade_obj
+                        trade = trade_obj
+                        break
             if trade:
                 active_trade = trade.model_dump()
+
+        recent_trades = get_session_manager().store.get_session_trades(session_id)
 
         return {
             "status": "ok",
             "session": session.model_dump(),
             "active_trade": active_trade,
+            "recent_trades": recent_trades,
             "latest_cycle": cycle_res,
         }
 

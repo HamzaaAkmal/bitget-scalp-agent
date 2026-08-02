@@ -200,7 +200,7 @@ async function scalpRequest<T>(path: string, options?: RequestInit): Promise<T> 
 
 export const scalpApi = {
   getActiveSessions: () =>
-    scalpRequest<{ status: string; active_sessions: ScalpSessionData[] }>("/scalp/sessions"),
+    scalpRequest<{ status: string; active_sessions: ScalpSessionData[]; latest_trade?: ScalpTrade }>("/scalp/sessions"),
 
   parseMission: (user_mission: string) =>
     scalpRequest<{ status: string; policy: SessionPolicy; warnings: any[] }>("/scalp/sessions/parse", {
@@ -229,6 +229,7 @@ export const scalpApi = {
       status: string;
       session: ScalpSessionData;
       active_trade?: ScalpTrade;
+      recent_trades?: ScalpTrade[];
       latest_cycle?: any;
     }>(`/scalp/sessions/${session_id}`),
 
