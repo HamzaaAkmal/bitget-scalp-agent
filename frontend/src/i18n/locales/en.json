@@ -426,6 +426,7 @@
     "uploadFile": "Upload file",
     "checkConnector": "Check connector",
     "analyzePortfolio": "Analyze connector portfolio",
+    "marketAnalysis": "Market analysis",
     "executionTimedOut": "Execution timed out, automatically stopped",
     "researchGoalAttached": "Research goal attached",
     "failedToStartGoal": "Failed to start goal.",

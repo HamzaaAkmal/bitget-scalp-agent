@@ -20,6 +20,7 @@ import {
   Send,
   Square,
   Target,
+  TrendingUp,
   Users,
   X,
 } from "lucide-react";
@@ -35,6 +36,8 @@ const CONNECTOR_CHECK_PROMPT =
   "List my trading connector profiles, show which one is selected, then check that selected connector. If it is not ready, tell me exactly what setup step is missing. Do not place or modify orders.";
 const CONNECTOR_PORTFOLIO_PROMPT =
   "Use the selected trading connector profile to summarize my account, positions, concentration, cash, and portfolio risk. Do not place or modify orders.";
+const MARKET_ANALYSIS_PROMPT =
+  "Perform a deep market analysis using CoinGecko market data. Analyze recent trends, identify past patterns, and provide actionable insights for the cryptocurrency market.";
 
 const ACCEPTED_FILE_TYPES =
   ".pdf,.docx,.xlsx,.xls,.pptx,.csv,.tsv,.txt,.md,.log,.json,.yaml,.yml,.toml,.html,.xml,.rst,.png,.jpg,.jpeg,.gif,.bmp,.webp,.tiff";
@@ -314,6 +317,18 @@ export const Composer = memo(forwardRef<ComposerHandle, Props>(function Composer
               >
                 <Landmark className="h-4 w-4" />
                 {t("agent.analyzePortfolio")}
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setShowUploadMenu(false);
+                  submitPrompt(MARKET_ANALYSIS_PROMPT);
+                }}
+                className="w-full px-3 py-2 text-left text-sm hover:bg-muted transition-colors flex items-center gap-2"
+              >
+                <TrendingUp className="h-4 w-4" />
+                {t("agent.marketAnalysis")}
               </button>
             </div>
           )}

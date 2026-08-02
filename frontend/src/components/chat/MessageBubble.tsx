@@ -33,6 +33,14 @@ const markdownComponents: ReactMarkdownOptions["components"] = {
     void node;
     return <a {...props} target="_blank" rel="noopener noreferrer" />;
   },
+  img: ({ node, alt, ...props }) => {
+    void node;
+    const isIcon = props.src?.includes("coingecko.com/coins/images") || props.src?.includes("icon");
+    if (isIcon) {
+      return <img {...props} alt={alt || ""} className="inline-block h-5 w-5 rounded-full object-contain ml-1 -mt-1 shadow-sm" />;
+    }
+    return <img {...props} alt={alt || ""} className="max-w-full h-auto rounded-md shadow-sm border my-2" />;
+  },
 };
 const proseClassName = "prose prose-sm dark:prose-invert max-w-none text-[15px] leading-relaxed prose-p:font-serif prose-p:text-[15.5px] prose-p:leading-[1.75] prose-li:font-serif prose-li:text-[15.5px] prose-li:leading-[1.75] prose-headings:font-sans prose-table:font-sans prose-code:font-mono prose-blockquote:font-sans [&_blockquote_p]:font-sans prose-table:border prose-table:border-border/50 prose-th:bg-muted/30 prose-th:px-3 prose-th:py-1.5 prose-td:px-3 prose-td:py-1.5 prose-th:text-left prose-th:text-xs prose-th:font-medium prose-td:text-xs prose-hr:hidden";
 
