@@ -523,6 +523,10 @@ class Runner:
             # ephemeral HOME does not force a full re-download every run.
             if real_home is not None:
                 env["XDG_CACHE_HOME"] = str(real_home / ".cache")
+                # Expose the real home so backtest/runner.py can set
+                # VIBE_TRADING_HOME and resolve ~/.vibe-trading/runs properly
+                # even with the sandboxed HOME override (VT-001).
+                env["_VIBE_REAL_HOME"] = str(real_home)
 
         run_kwargs: dict[str, Any] = dict(
             cwd=str(effective_cwd),

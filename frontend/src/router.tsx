@@ -19,6 +19,9 @@ const Reports = lazy(() =>
 const CryptoMarket = lazy(() =>
   import("@/pages/CryptoMarket").then((m) => ({ default: m.CryptoMarket })),
 );
+const Portfolio = lazy(() =>
+  import("@/pages/Portfolio").then((m) => ({ default: m.Portfolio })),
+);
 
 function PageLoader() {
   return (
@@ -45,6 +48,7 @@ export const router = createBrowserRouter([
       { path: "/agent", element: wrap(Agent) },
       { path: "/runtime", element: wrap(Runtime) },
       { path: "/markets", element: wrap(CryptoMarket) },
+      { path: "/portfolio", element: wrap(Portfolio) },
       { path: "/reports", element: wrap(Reports) },
       { path: "/settings", element: wrap(Settings) },
       { path: "/runs/:runId", element: wrap(RunDetail) },

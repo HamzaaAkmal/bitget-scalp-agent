@@ -879,6 +879,36 @@ def main(run_dir: Path) -> None:
             file is read so an arbitrary filesystem location cannot be used
             to source ``code/signal_engine.py``.
     """
+    # Ensure the agent directory is importable. When this module runs as a
+    # subprocess (``python backtest/runner.py <path>``), the cwd is typically
+    # the agent root but ``src`` may not be on sys.path yet.
+    _agent_root = str(Path(__file__).resolve().parent.parent)
+    if _agent_root not in sys.path:
+        sys.path.insert(0, _agent_root)
+
+    # The Runner sandbox overrides HOME to an ephemeral directory for security
+    # (VT-001). This causes ``Path.home()`` in ``_default_run_roots()`` to
+    # resolve to the sandbox home instead of ``~/.vibe-trading``. Fix by
+    # explicitly setting ``VIBE_TRADING_HOME`` so the config path resolver
+    # always finds the real runtime root.
+    import os as _os
+    if not _os.environ.get("VIBE_TRADING_HOME"):
+        _real_home = _os.environ.get("_VIBE_REAL_HOME") or ""
+        if not _real_home:
+            # Best-effort: try the passwd database (Unix) before falling back
+            # to the current HOME (may be the sandbox directory).
+            try:
+                import pwd as _pwd
+                _real_home = _pwd.getpwuid(_os.getuid()).pw_dir
+            except Exception:
+                _real_home = _os.environ.get("HOME", "")
+        if _real_home:
+            _vt_root = str(Path(_real_home) / ".vibe-trading")
+            _os.environ["VIBE_TRADING_HOME"] = _vt_root
+
+    # Also ensure the run directory itself exists.
+    run_dir.mkdir(parents=True, exist_ok=True)
+
     # Guard the CLI entry point with the same root whitelist the MCP
     # ``backtest`` tool already uses (src/tools/backtest_tool.py:23). Without
     # this, ``python -m backtest.runner /tmp/attacker_path`` would happily

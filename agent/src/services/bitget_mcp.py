@@ -10,12 +10,53 @@ from __future__ import annotations
 
 import json
 import os
+import threading
+import time as _time
 from pathlib import Path
 from typing import Any
 
 from src.config.loader import load_agent_config
 from src.config.schema import MCPServerConfig
 from src.tools.mcp import MCPServerAdapter
+
+
+# ---------------------------------------------------------------------------
+# In-memory TTL cache for MCP call results
+# ---------------------------------------------------------------------------
+# The official Bitget MCP runs as a stdio subprocess (``npx -y @bitget-ai/...``).
+# Each ``call_bitget_tool`` invocation starts a new Node process, so caching the
+# results for a short window avoids repeated cold starts and makes the Markets tab
+# feel instantaneous on repeated loads.
+
+class _TTLCache:
+    """Thread-safe in-memory cache with per-key TTL."""
+
+    def __init__(self, default_ttl: float = 30.0) -> None:
+        self._store: dict[str, tuple[float, Any]] = {}
+        self._lock = threading.Lock()
+        self._default_ttl = default_ttl
+
+    def get(self, key: str) -> Any | None:
+        with self._lock:
+            entry = self._store.get(key)
+            if entry is None:
+                return None
+            expires_at, value = entry
+            if _time.monotonic() > expires_at:
+                del self._store[key]
+                return None
+            return value
+
+    def set(self, key: str, value: Any, ttl: float | None = None) -> None:
+        with self._lock:
+            self._store[key] = (_time.monotonic() + (ttl or self._default_ttl), value)
+
+    def clear(self) -> None:
+        with self._lock:
+            self._store.clear()
+
+
+_market_cache = _TTLCache(default_ttl=30.0)
 
 BITGET_SERVER_NAME = "bitget"
 BITGET_MCP_PACKAGE = "@bitget-ai/bitget-agent-mcp"
@@ -116,8 +157,17 @@ def call_bitget_tool(
     return adapter.call_tool(remote, dict(arguments or {}))
 
 
-def call_market(arguments: dict[str, Any]) -> dict[str, Any]:
-    """Call the Bitget MCP public ``market`` verb."""
+def call_market(arguments: dict[str, Any], *, cache_ttl: float | None = None) -> dict[str, Any]:
+    """Call the Bitget MCP public ``market`` verb with optional caching."""
+    if cache_ttl is not None and cache_ttl > 0:
+        cache_key = f"market:{json.dumps(arguments, sort_keys=True)}"
+        cached = _market_cache.get(cache_key)
+        if cached is not None:
+            return cached
+        result = call_bitget_tool("market", arguments, read_only=True)
+        if str(result.get("status", "")).lower() == "ok":
+            _market_cache.set(cache_key, result, ttl=cache_ttl)
+        return result
     return call_bitget_tool("market", arguments, read_only=True)
 
 
@@ -148,7 +198,10 @@ def fetch_candles(
     interval: str = "5m",
     lookback: int = 300,
 ) -> list[dict[str, Any]]:
-    """Fetch recent Bitget candles through the official MCP server."""
+    """Fetch recent Bitget candles through the official MCP server.
+
+    Results are cached for 30 seconds to avoid repeated MCP subprocess spawns.
+    """
     category = normalize_category(category)
     symbol = normalize_symbol(symbol)
     interval = normalize_interval(interval)
@@ -161,7 +214,8 @@ def fetch_candles(
             "interval": interval,
             "limit": str(limit),
             "view": "summary",
-        }
+        },
+        cache_ttl=30.0,
     )
     payload = extract_bitget_payload(result)
     rows = payload.get("data")
@@ -205,14 +259,15 @@ def fetch_candles_history(
 
 
 def fetch_ticker(*, symbol: str, category: str = DEFAULT_PRODUCT_TYPE) -> dict[str, Any]:
-    """Fetch a Bitget ticker snapshot through MCP."""
+    """Fetch a Bitget ticker snapshot through MCP (cached for 15s)."""
     result = call_market(
         {
             "action": "tickers",
             "category": normalize_category(category),
             "symbol": normalize_symbol(symbol),
             "view": "summary",
-        }
+        },
+        cache_ttl=15.0,
     )
     payload = extract_bitget_payload(result)
     rows = payload.get("data")

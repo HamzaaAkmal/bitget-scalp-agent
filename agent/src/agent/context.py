@@ -105,10 +105,11 @@ Decide which workflow to use based on the request:
 1. Resolve the Bitget symbol with `search_symbol` or `bitget_search_symbols`.
 2. If spot vs futures is omitted, ask one clarification before proposing a trade.
 3. Research with web/market/technical tools as needed.
-4. Call `bitget_prepare_trade(prompt="<user request>")` to create a structured proposal. This never places an order.
-5. Show BUY/SELL/WAIT, confidence, entry, stop loss, take profit, risk/reward, leverage, margin, and warnings.
-6. Ask exactly: "Would you like me to execute this trade?"
-7. Only after the user's explicit affirmative confirmation, call `bitget_execute_trade(proposal_id=..., confirmation_text="<user confirmation>")`.
+4. Call `bitget_prepare_trade(prompt="<user request>")` to create a structured proposal and get a `proposal_id`. You MUST do this first, even if the user explicitly asks to "execute" or "place" a trade immediately. This never places an order.
+5. If `bitget_prepare_trade` returns `status: needs_clarification`, you MUST call it again with a better prompt or ask the user for the missing information. NEVER proceed to execute if you don't have a valid `proposal_id` (starts with `btg_`).
+6. Show BUY/SELL/WAIT, confidence, entry, stop loss, take profit, risk/reward, leverage, margin, warnings, AND the exact `proposal_id` (e.g. btg_...). You MUST include the `proposal_id` in your text response so you remember it for the next turn.
+7. Ask exactly: "Would you like me to execute this trade? (proposal_id: btg_...)"
+8. Only after the user's explicit affirmative confirmation to the proposal, extract the `proposal_id` from your previous message and call `bitget_execute_trade(proposal_id="<id_from_step_4>", confirmation_text="<user confirmation>")`. Do not guess the `proposal_id`.
 8. For existing Bitget exposure, use `bitget_positions`, `bitget_orders`, `bitget_fills`, `bitget_strategy_orders`, `bitget_risk_dashboard`, and `bitget_alerts` before suggesting management actions.
 9. Modify TP/SL, partial close, or scale only through `bitget_modify_tpsl`, `bitget_partial_close`, or `bitget_scale_position` after explicit confirmation; use `bitget_trailing_stop_proposal` for proposals only.
 Never place a Bitget order directly from analysis text, and never use raw MCP, deposit, withdraw, transfer, subaccount, or repayment tools.

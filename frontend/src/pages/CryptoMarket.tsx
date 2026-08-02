@@ -468,7 +468,7 @@ export function CryptoMarket() {
   const loadHistory = async () => {
     setLoading(true);
     try {
-      const response = await api.getBitgetCandles({ symbol, category, interval, lookback: 300 });
+      const response = await api.getBitgetCandles({ symbol, category, interval, lookback: 200 });
       const nextBars = response.bars
         .map(normalizeBar)
         .filter((bar): bar is CandleWithVolume => Boolean(bar))

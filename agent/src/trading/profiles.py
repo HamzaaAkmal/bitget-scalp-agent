@@ -22,7 +22,7 @@ from src.trading.connectors.trading212.profiles import TRADING212_PROFILES
 from src.trading.types import TradingProfile
 
 CONFIG_FILENAME = "trading-connections.json"
-DEFAULT_PROFILE_ID = "bitget-live-mcp-readonly"
+DEFAULT_PROFILE_ID = "bitget-live-mcp"
 
 BUILTIN_PROFILES: tuple[TradingProfile, ...] = (
     *IBKR_PROFILES,

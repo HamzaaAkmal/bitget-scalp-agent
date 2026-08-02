@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { useEffect, useState } from "react";
 import { Link, Outlet, useLocation, useSearchParams } from "react-router";
-import { Activity, Bot, CandlestickChart, FileText, Moon, Sun, Plus, Trash2, Pencil, MessageSquare, ChevronsLeft, ChevronsRight, Settings, Loader2 } from "lucide-react";
+import { Activity, Bot, CandlestickChart, FileText, Moon, Sun, Plus, Trash2, Pencil, MessageSquare, ChevronsLeft, ChevronsRight, Settings, Loader2, Wallet } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDarkMode } from "@/hooks/useDarkMode";
 import { api, type SessionItem } from "@/lib/api";
@@ -21,6 +21,7 @@ export function Layout() {
     { to: "/", icon: Bot, label: t('layout.agent') },
     { to: "/runtime", icon: Activity, label: t('layout.runtime') },
     { to: "/markets", icon: CandlestickChart, label: t('layout.markets') },
+    { to: "/portfolio", icon: Wallet, label: t('layout.portfolio') },
     { to: "/reports", icon: FileText, label: t('layout.reports') },
     { to: "/settings", icon: Settings, label: t('layout.settings') },
   ];

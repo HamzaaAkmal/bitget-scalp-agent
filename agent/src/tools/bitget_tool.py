@@ -274,7 +274,7 @@ class BitgetPrepareTradeTool(BaseTool):
     parameters = {
         "type": "object",
         "properties": {
-            "prompt": {"type": "string", "description": "The user's full natural-language trade request."},
+            "prompt": {"type": "string", "description": "REQUIRED. The exact natural-language trade request (e.g. 'Execute the trade for Ethereum'). Do not pass 'USDT-FUTURES' here."},
             "symbol": {"type": "string", "description": "Optional explicit symbol override."},
             "category": {"type": "string", "description": "Optional SPOT or USDT-FUTURES override."},
         },
@@ -321,7 +321,7 @@ class BitgetExecuteTradeTool(BaseTool):
     parameters = {
         "type": "object",
         "properties": {
-            "proposal_id": {"type": "string"},
+            "proposal_id": {"type": "string", "description": "The EXACT proposal_id returned by bitget_prepare_trade (starts with btg_). Do NOT guess this or pass a prompt string."},
             "confirmation_text": {"type": "string", "description": "User's explicit affirmative confirmation text."},
             "dry_run": {"type": "boolean", "default": False},
         },

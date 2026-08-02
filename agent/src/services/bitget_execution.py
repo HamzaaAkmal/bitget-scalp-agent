@@ -20,9 +20,15 @@ def execute_confirmed_trade(
     dry_run: bool = False,
 ) -> dict[str, Any]:
     """Execute a stored trade proposal through the official Bitget MCP server."""
+    if not proposal_id or not str(proposal_id).startswith("btg_"):
+        return {
+            "status": "error",
+            "error": f"Invalid proposal_id '{proposal_id}'. You MUST call bitget_prepare_trade first to generate a valid proposal_id (e.g. btg_...). Never guess or pass the user prompt as the proposal_id."
+        }
+
     proposal = get_trade_proposal(proposal_id)
     if proposal is None:
-        return {"status": "error", "error": f"unknown trade proposal: {proposal_id}"}
+        return {"status": "error", "error": f"Unknown trade proposal: {proposal_id}. You MUST call bitget_prepare_trade first."}
     if proposal_is_expired(proposal):
         return {"status": "error", "error": "trade proposal expired; create a fresh proposal"}
     if not explicit_confirmation(confirmation_text):
