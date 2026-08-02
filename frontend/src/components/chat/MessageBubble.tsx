@@ -41,6 +41,37 @@ const markdownComponents: ReactMarkdownOptions["components"] = {
     }
     return <img {...props} alt={alt || ""} className="max-w-full h-auto rounded-md shadow-sm border my-2" />;
   },
+  code: ({ node, inline, className, children, ...props }: any) => {
+    void node;
+    const match = /language-(\w+)/.exec(className || "");
+    const lang = match ? match[1] : "";
+
+    if (!inline && lang === "tradingview") {
+      try {
+        const payload = JSON.parse(String(children).trim());
+        const symbol = payload.symbol || "BTCUSDT";
+        const interval = payload.interval || "1m";
+        const category = payload.category || "USDT-FUTURES";
+        
+        const tvInterval = interval === '1m' ? '1' : interval.replace('m', '').toUpperCase();
+        const src = `https://s.tradingview.com/widgetembed/?frameElementId=tradingview_123&symbol=BITGET:${symbol}${category === "USDT-FUTURES" ? ".P" : ""}&interval=${tvInterval}&hidesidetoolbar=0&symboledit=1&saveimage=1&toolbarbg=f1f3f6&studies=[]&theme=dark&style=1&timezone=Etc%2FUTC&withdateranges=1&showpopupbutton=1&studies_overrides={}&overrides={}&enabled_features=[]&disabled_features=[]&locale=en&utm_source=localhost&utm_medium=widget&utm_campaign=chart&utm_term=BITGET%3A${symbol}`;
+        
+        return (
+          <div className="relative min-h-[400px] w-full my-4 rounded-md border border-border/50 bg-card p-2 overflow-hidden">
+            <iframe
+              src={src}
+              style={{ width: "100%", height: "100%", minHeight: "380px", border: "none", borderRadius: "6px" }}
+              title={`TradingView Chart: ${symbol}`}
+            />
+          </div>
+        );
+      } catch (err) {
+        // Fallback if not valid JSON
+        return <code className={className} {...props}>{children}</code>;
+      }
+    }
+    return <code className={className} {...props}>{children}</code>;
+  },
 };
 const proseClassName = "prose prose-sm dark:prose-invert max-w-none text-[15px] leading-relaxed prose-p:font-serif prose-p:text-[15.5px] prose-p:leading-[1.75] prose-li:font-serif prose-li:text-[15.5px] prose-li:leading-[1.75] prose-headings:font-sans prose-table:font-sans prose-code:font-mono prose-blockquote:font-sans [&_blockquote_p]:font-sans prose-table:border prose-table:border-border/50 prose-th:bg-muted/30 prose-th:px-3 prose-th:py-1.5 prose-td:px-3 prose-td:py-1.5 prose-th:text-left prose-th:text-xs prose-th:font-medium prose-td:text-xs prose-hr:hidden";
 
