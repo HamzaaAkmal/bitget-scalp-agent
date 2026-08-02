@@ -58,11 +58,15 @@ def execute_confirmed_trade(
             leverage_args["posSide"] = pos_side
         actions.append({"step": "set_leverage", "result": call_bitget_tool("account_config", leverage_args)})
 
+    from src.services.bitget_symbols import format_bitget_price, format_bitget_qty
+
+    formatted_qty = format_bitget_qty(symbol, qty)
+
     order_args: dict[str, Any] = {
         "action": "place",
         "category": category,
         "symbol": symbol,
-        "qty": str(qty),
+        "qty": str(formatted_qty or qty),
         "side": side,
         "orderType": "market",
         "clientOid": f"vt-{proposal_id}",
@@ -75,8 +79,8 @@ def execute_confirmed_trade(
                 "posSide": "long" if side == "buy" else "short",
                 "reduceOnly": "no",
                 "marginMode": proposal.get("margin_mode") or "isolated",
-                "takeProfit": str(proposal.get("take_profit") or ""),
-                "stopLoss": str(proposal.get("stop_loss") or ""),
+                "takeProfit": format_bitget_price(symbol, proposal.get("take_profit")),
+                "stopLoss": format_bitget_price(symbol, proposal.get("stop_loss")),
                 "tpTriggerBy": "market",
                 "slTriggerBy": "market",
                 "tpOrderType": "market",

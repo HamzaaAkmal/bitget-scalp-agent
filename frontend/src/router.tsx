@@ -22,6 +22,9 @@ const CryptoMarket = lazy(() =>
 const Portfolio = lazy(() =>
   import("@/pages/Portfolio").then((m) => ({ default: m.Portfolio })),
 );
+const AIScalpTrader = lazy(() =>
+  import("@/pages/AIScalpTrader").then((m) => ({ default: m.AIScalpTrader })),
+);
 
 function PageLoader() {
   return (
@@ -46,6 +49,7 @@ export const router = createBrowserRouter([
       { path: "/", element: wrap(Agent) },
       { path: "/about", element: wrap(Home) },
       { path: "/agent", element: wrap(Agent) },
+      { path: "/ai-scalp-trader", element: wrap(AIScalpTrader) },
       { path: "/runtime", element: wrap(Runtime) },
       { path: "/markets", element: wrap(CryptoMarket) },
       { path: "/portfolio", element: wrap(Portfolio) },

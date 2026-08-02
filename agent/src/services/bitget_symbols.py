@@ -28,6 +28,52 @@ _ALIASES = {
 }
 
 
+def format_bitget_price(symbol: str, price: float | str | None) -> str:
+    """Format price according to Bitget tick size requirements."""
+    if price is None or price == "":
+        return ""
+    try:
+        val = float(price)
+    except (TypeError, ValueError):
+        return str(price)
+    if val <= 0:
+        return ""
+    clean = str(symbol or "").upper()
+    if "BTC" in clean:
+        return f"{val:.1f}"
+    elif "ETH" in clean or "SOL" in clean or "DOGE" in clean or "XRP" in clean:
+        return f"{val:.2f}" if val >= 1.0 else f"{val:.4f}"
+    elif "PEPE" in clean or val < 0.001:
+        return f"{val:.8f}"
+    elif val >= 1000:
+        return f"{val:.1f}"
+    elif val >= 1:
+        return f"{val:.2f}"
+    else:
+        return f"{val:.4f}"
+
+
+def format_bitget_qty(symbol: str, qty: float | str | None) -> str:
+    """Format quantity according to Bitget contract size precision."""
+    if qty is None or qty == "":
+        return ""
+    try:
+        val = float(qty)
+    except (TypeError, ValueError):
+        return str(qty)
+    if val <= 0:
+        return ""
+    clean = str(symbol or "").upper()
+    if "BTC" in clean:
+        return f"{max(0.001, round(val, 3)):.3f}"
+    elif "ETH" in clean:
+        return f"{max(0.01, round(val, 2)):.2f}"
+    elif "SOL" in clean or "DOGE" in clean or "XRP" in clean:
+        return f"{max(0.1, round(val, 1)):.1f}"
+    else:
+        return f"{max(0.1, round(val, 2)):.2f}"
+
+
 def search_symbols(query: str, *, category: str | None = None, limit: int = _DEFAULT_LIMIT) -> dict[str, Any]:
     """Search Bitget-supported symbols by name, base coin, or symbol."""
     raw_query = str(query or "").strip()

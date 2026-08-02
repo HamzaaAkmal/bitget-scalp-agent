@@ -299,6 +299,10 @@ register_alpha_routes(app)
 from src.api.auth_routes import register_auth_routes  # noqa: E402
 register_auth_routes(app)
 
+# --- AI Scalp Trader ---
+from src.api.scalp_trader_routes import register_scalp_routes  # noqa: E402
+register_scalp_routes(app)
+
 # --- OpenBB Workspace agent bridge (GET /agents.json, POST /v1/query) ---
 # No-op unless the optional `openbb` extra is installed; self-reports either way.
 from src.openbb_bridge import try_register_openbb_routes  # noqa: E402  # OPENBB-WORKSPACE-INTEGRATION

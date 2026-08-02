@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { useEffect, useState } from "react";
 import { Link, Outlet, useLocation, useSearchParams } from "react-router";
-import { Activity, Bot, CandlestickChart, FileText, Moon, Sun, Plus, Trash2, Pencil, MessageSquare, ChevronsLeft, ChevronsRight, Settings, Loader2, Wallet } from "lucide-react";
+import { Activity, Bot, CandlestickChart, FileText, Moon, Sun, Plus, Trash2, Pencil, MessageSquare, ChevronsLeft, ChevronsRight, Settings, Loader2, Wallet, Radar } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDarkMode } from "@/hooks/useDarkMode";
 import { api, type SessionItem } from "@/lib/api";
@@ -19,6 +19,7 @@ export function Layout() {
   // matches both "/" and legacy "/agent" deep links.
   const NAV = [
     { to: "/", icon: Bot, label: t('layout.agent') },
+    { to: "/ai-scalp-trader", icon: Radar, label: "AI Scalp Trader" },
     { to: "/runtime", icon: Activity, label: t('layout.runtime') },
     { to: "/markets", icon: CandlestickChart, label: t('layout.markets') },
     { to: "/portfolio", icon: Wallet, label: t('layout.portfolio') },

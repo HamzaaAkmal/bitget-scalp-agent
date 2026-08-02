@@ -92,14 +92,16 @@ def modify_tpsl(
         "confirm": True,
     }
     
+    from src.services.bitget_symbols import format_bitget_price
+
     if take_profit is not None:
         args["tpTriggerBy"] = "market"
         args["tpOrderType"] = "market"
-        args["takeProfit"] = str(take_profit)
+        args["takeProfit"] = format_bitget_price(symbol, take_profit)
     if stop_loss is not None:
         args["slTriggerBy"] = "market"
         args["slOrderType"] = "market"
-        args["stopLoss"] = str(stop_loss)
+        args["stopLoss"] = format_bitget_price(symbol, stop_loss)
 
     if not strategy_order_id:
         args["planType"] = "position_tpsl"

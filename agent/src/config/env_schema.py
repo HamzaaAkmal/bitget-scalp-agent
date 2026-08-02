@@ -179,6 +179,8 @@ class DataConfig(_EnvBase):
     longbridge_app_key: str = Field(alias="LONGBRIDGE_APP_KEY", default="")
     longbridge_app_secret: str = Field(alias="LONGBRIDGE_APP_SECRET", default="")
     longbridge_access_token: str = Field(alias="LONGBRIDGE_ACCESS_TOKEN", default="")
+    coingecko_api_key: str = Field(alias="COINGECKO_API_KEY", default="")
+    coingecko_api_tier: str = Field(alias="COINGECKO_API_TIER", default="demo")
 
 
 # ---------------------------------------------------------------------------
