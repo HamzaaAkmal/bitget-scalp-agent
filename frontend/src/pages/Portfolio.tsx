@@ -121,6 +121,14 @@ function payloadObject(envelope: BitgetMcpEnvelope | null | undefined): Record<s
   return {};
 }
 
+function bitgetPositionWsUrl(category: string): string {
+  const q = new URLSearchParams();
+  q.set("category", category);
+  q.set("interval_ms", "2000");
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${protocol}//${window.location.host}/bitget/ws/positions?${q.toString()}`;
+}
+
 export function Portfolio() {
   const [category, setCategory] = useState<(typeof CATEGORIES)[number]["value"]>("USDT-FUTURES");
   const [loading, setLoading] = useState(true);
@@ -208,6 +216,45 @@ export function Portfolio() {
     return () => window.clearInterval(dataTimer);
   }, [category]);
 
+  useEffect(() => {
+    if (category === "SPOT") return;
+    let cancelled = false;
+    let socket: WebSocket | null = null;
+    let reconnectTimer: number;
+
+    const start = () => {
+      if (cancelled) return;
+      try {
+        socket = new WebSocket(bitgetPositionWsUrl(category));
+        socket.addEventListener("message", (event) => {
+          if (cancelled) return;
+          try {
+            const payload = JSON.parse(String(event.data)) as { positions?: BitgetMcpEnvelope };
+            if (payload.positions) {
+              setPositionRows(payloadRows(payload.positions));
+            }
+          } catch {
+            // Ignore malformed stream frames
+          }
+        });
+        socket.addEventListener("close", () => {
+          if (!cancelled) reconnectTimer = window.setTimeout(start, 5000);
+        });
+        socket.addEventListener("error", () => {
+          socket?.close();
+        });
+      } catch {
+        if (!cancelled) reconnectTimer = window.setTimeout(start, 5000);
+      }
+    };
+    start();
+    return () => {
+      cancelled = true;
+      socket?.close();
+      window.clearTimeout(reconnectTimer);
+    };
+  }, [category]);
+
   // Derived values for Portfolio Overview
   const spotBalance = useMemo(() => sumRows(spotAccountRows, "usdtEquity", "usdValue", "equity", "available", "total"), [spotAccountRows]);
   const futuresBalance = useMemo(() => {
@@ -218,7 +265,7 @@ export function Portfolio() {
     return sumRows(accountRows, "usdtEquity", "usdValue", "equity", "available", "total");
   }, [accountEnvelope, accountRows]);
   const totalValue = spotBalance + futuresBalance;
-  const livePnl = useMemo(() => sumRows(positionRows, "unrealizedPL", "upl", "pnl", "unrealizedPnl"), [positionRows]);
+  const livePnl = useMemo(() => sumRows(positionRows, "unrealizedPL", "unrealisedPnl", "upl", "pnl", "unrealizedPnl"), [positionRows]);
   
   const handleAction = (title: string, description: string, action: () => Promise<BitgetMcpEnvelope>) => {
     setConfirmAction({
@@ -411,7 +458,7 @@ export function Portfolio() {
                     {positionRows.length > 0 ? (
                       positionRows.map((row, idx) => {
                         const side = String(row.holdSide || row.posSide || "long").toLowerCase();
-                        const pnl = Number(row.unrealizedPL || row.upl || row.pnl || 0);
+                        const pnl = Number(row.unrealizedPL || row.unrealisedPnl || row.upl || row.pnl || row.unrealizedPnl || 0);
                         const isLong = side === "long";
                         
                         return (
@@ -423,7 +470,7 @@ export function Portfolio() {
                               </span>
                             </td>
                             <td className="px-3 py-2">{formatCompactNumber(Number(row.total || row.size || 0))}</td>
-                            <td className="px-3 py-2">{formatPrice(Number(row.averageOpenPrice || row.openPrice || 0))}</td>
+                            <td className="px-3 py-2">{formatPrice(Number(row.averageOpenPrice || row.openPriceAvg || row.avgPrice || row.openPrice || 0))}</td>
                             <td className="px-3 py-2">{formatPrice(Number(row.markPrice || 0))}</td>
                             <td className={`px-3 py-2 font-medium ${pnl >= 0 ? 'text-success' : 'text-destructive'}`}>
                               {formatSignedMoney(pnl)}
@@ -528,15 +575,26 @@ export function Portfolio() {
                     </thead>
                     <tbody>
                       {strategyRows.length > 0 ? (
-                        strategyRows.map((row, idx) => (
-                          <tr key={idx} className="border-b last:border-0 hover:bg-muted/30">
-                            <td className="px-3 py-2 font-medium">{String(row.symbol || "Unknown")}</td>
-                            <td className="px-3 py-2">{String(row.planType || row.type || "-")}</td>
-                            <td className="px-3 py-2">{formatPrice(Number(row.triggerPrice || 0))}</td>
-                            <td className="px-3 py-2">{formatCompactNumber(Number(row.size || row.qty || 0))}</td>
-                            <td className="px-3 py-2 text-muted-foreground">{String(row.state || row.status || "-")}</td>
-                          </tr>
-                        ))
+                        strategyRows.map((row, idx) => {
+                          const tp = Number(row.takeProfit || row.tpLimitPrice || 0);
+                          const sl = Number(row.stopLoss || row.slLimitPrice || 0);
+                          const triggers = [];
+                          if (tp) triggers.push(`TP: ${formatPrice(tp)}`);
+                          if (sl) triggers.push(`SL: ${formatPrice(sl)}`);
+                          const triggerDisplay = triggers.length > 0 
+                            ? triggers.join(" | ") 
+                            : formatPrice(Number(row.triggerPrice || row.planPrice || 0));
+
+                          return (
+                            <tr key={idx} className="border-b last:border-0 hover:bg-muted/30">
+                              <td className="px-3 py-2 font-medium">{String(row.symbol || "Unknown")}</td>
+                              <td className="px-3 py-2">{String(row.planType || row.type || "-")}</td>
+                              <td className="px-3 py-2 text-[11px] whitespace-nowrap">{triggerDisplay}</td>
+                              <td className="px-3 py-2">{formatCompactNumber(Number(row.size || row.qty || 0))}</td>
+                              <td className="px-3 py-2 text-muted-foreground">{String(row.state || row.status || "-")}</td>
+                            </tr>
+                          );
+                        })
                       ) : (
                         <tr>
                           <td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">No strategy orders</td>
