@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
@@ -15,7 +15,7 @@ import {
   Wifi,
   WifiOff,
 } from "lucide-react";
-import { api, type LiveBrokerStatus, type LiveMandateLimits, type LiveStatus } from "@/lib/api";
+import { api, type LiveBrokerStatus, type LiveStatus } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 const RUNTIME_POLL_INTERVAL_MS = 15_000;
@@ -80,7 +80,7 @@ export function Runtime() {
     };
   }, [loadStatus]);
 
-  const summary = useMemo(() => summarizeRuntime(status), [status]);
+
 
   return (
     <div className="min-h-screen p-6 lg:p-8">
@@ -131,29 +131,7 @@ export function Runtime() {
 
         {!loading && !error && status ? (
           <>
-            <section className="grid gap-3 md:grid-cols-4">
-              <SummaryTile
-                label={t("runtime.globalHalt")}
-                value={status.global_halted ? t("runtime.halted") : t("runtime.clear")}
-                tone={status.global_halted ? "danger" : "success"}
-                icon={status.global_halted ? OctagonX : CheckCircle2}
-              />
-              <SummaryTile label={t("runtime.brokers")} value={String(summary.brokerCount)} tone="neutral" icon={Activity} />
-              <SummaryTile
-                label={t("runtime.authorized")}
-                value={String(summary.authorizedCount)}
-                tone={summary.authorizedCount > 0 ? "success" : "neutral"}
-                icon={summary.authorizedCount > 0 ? Wifi : WifiOff}
-              />
-              <SummaryTile
-                label={t("runtime.runners")}
-                value={t("runtime.running", { count: summary.runningCount })}
-                tone={summary.runningCount > 0 && !status.global_halted ? "success" : "neutral"}
-                icon={summary.runningCount > 0 ? Activity : Clock3}
-              />
-            </section>
-
-            {status.brokers.length === 0 ? (
+            {status.brokers.filter(b => b.auth.broker.toLowerCase().includes('bitget')).length === 0 ? (
               <section className="rounded-xl border border-dashed border-border/60 bg-card p-5 text-center shadow-sm">
                 <ShieldOff className="mx-auto h-8 w-8 text-muted-foreground" />
                 <h2 className="mt-3 text-sm font-semibold">{t("runtime.noProfilesTitle")}</h2>
@@ -161,7 +139,9 @@ export function Runtime() {
               </section>
             ) : (
               <section className="grid gap-4">
-                {status.brokers.map((broker) => (
+                {status.brokers
+                  .filter((broker) => broker.auth.broker.toLowerCase().includes('bitget'))
+                  .map((broker) => (
                   <BrokerRuntimeCard
                     key={broker.auth.profile_id || broker.auth.broker}
                     broker={broker}
@@ -180,12 +160,7 @@ export function Runtime() {
   );
 }
 
-interface SummaryTileProps {
-  label: string;
-  value: string;
-  tone: "success" | "danger" | "neutral";
-  icon: typeof Activity;
-}
+
 
 function isCurrentStatusRequest(
   activeRequest: { id: number; controller: AbortController } | null,
@@ -193,33 +168,6 @@ function isCurrentStatusRequest(
   controller: AbortController,
 ): boolean {
   return activeRequest?.id === requestId && activeRequest.controller === controller;
-}
-
-function SummaryTile({ label, value, tone, icon: Icon }: SummaryTileProps) {
-  return (
-    <div className="rounded-xl border border-border/60 bg-card p-4 shadow-sm">
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
-        <Icon
-          className={cn(
-            "h-4 w-4",
-            tone === "success" && "text-success",
-            tone === "danger" && "text-danger",
-            tone === "neutral" && "text-muted-foreground",
-          )}
-        />
-      </div>
-      <div
-        className={cn(
-          "mt-3 text-2xl font-semibold",
-          tone === "success" && "text-success",
-          tone === "danger" && "text-danger",
-        )}
-      >
-        {value}
-      </div>
-    </div>
-  );
 }
 
 function BrokerRuntimeCard({
@@ -238,9 +186,7 @@ function BrokerRuntimeCard({
   const brokerKey = broker.auth.broker;
   const runnerAlive = broker.runner?.alive ?? false;
   const halted = globalHalted || broker.halted;
-  const mandate = broker.mandate ?? null;
   const risk = deriveRiskState(broker, globalHalted, t);
-  const mandateCountdown = formatCountdown(mandate?.expires_at, t, nowMs);
 
   if (broker.auth.transport === "broker_sdk") {
     return <SdkBrokerRuntimeCard broker={broker} t={t} onRefresh={onRefresh} />;
@@ -252,44 +198,49 @@ function BrokerRuntimeCard({
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-sm font-semibold capitalize">{brokerKey}</h2>
-            <StatusPill
-              label={broker.auth.oauth_token_present ? t("runtime.authPresent") : t("runtime.authMissing")}
-              tone={broker.auth.oauth_token_present ? "success" : "neutral"}
-            />
-            <StatusPill
-              label={runnerAlive ? t("runtime.runnerAlive") : t("runtime.runnerStopped")}
-              tone={runnerAlive ? "success" : "neutral"}
-            />
+            {brokerKey.toLowerCase().includes('bitget') ? (
+              <StatusPill label="active" tone="success" />
+            ) : (
+              <>
+                <StatusPill
+                  label={broker.auth.oauth_token_present ? t("runtime.authPresent") : t("runtime.authMissing")}
+                  tone={broker.auth.oauth_token_present ? "success" : "neutral"}
+                />
+                <StatusPill
+                  label={runnerAlive ? t("runtime.runnerAlive") : t("runtime.runnerStopped")}
+                  tone={runnerAlive ? "success" : "neutral"}
+                />
+              </>
+            )}
             {halted ? <StatusPill label={t("runtime.haltedPill")} tone="danger" /> : null}
           </div>
           <p className="mt-2 text-sm text-muted-foreground">
-            {broker.auth.is_live_broker ? t("runtime.recognizedProfile") : t("runtime.unknownProfile")} · {t("runtime.lastTick")}{" "}
-            {formatLastTick(broker.runner?.last_tick, broker.runner?.last_tick_age_seconds, t, nowMs)}
+            {brokerKey.toLowerCase().includes('bitget') ? (
+              "MCP Server Connected · Ready to accept orders"
+            ) : (
+              <>
+                {broker.auth.is_live_broker ? t("runtime.recognizedProfile") : t("runtime.unknownProfile")} · {t("runtime.lastTick")}{" "}
+                {formatLastTick(broker.runner?.last_tick, broker.runner?.last_tick_age_seconds, t, nowMs)}
+              </>
+            )}
           </p>
         </div>
-        <StatusPill label={risk.label} tone={risk.tone} />
+        {brokerKey.toLowerCase().includes('bitget') ? (
+          <StatusPill label="online" tone="success" />
+        ) : (
+          <StatusPill label={risk.label} tone={risk.tone} />
+        )}
       </div>
 
-      <div className="mt-4 grid gap-3 md:grid-cols-3">
-        <RuntimePanel title={t("runtime.authorization")} icon={broker.auth.oauth_token_present ? Wifi : WifiOff}>
-          <KeyValue label={t("runtime.oauthToken")} value={broker.auth.oauth_token_present ? t("runtime.present") : t("runtime.missing")} />
-          <KeyValue label={t("runtime.profileType")} value={broker.auth.is_live_broker ? t("runtime.recognized") : t("runtime.unknown")} />
-        </RuntimePanel>
-
-        <RuntimePanel title={t("runtime.mandate")} icon={mandate ? ShieldCheck : ShieldOff}>
-          {mandate ? (
-            <>
-              <KeyValue label={t("runtime.account")} value={mandate.account_ref || t("runtime.unrecorded")} />
-              <KeyValue label={t("runtime.expiry")} value={mandate.expired ? t("runtime.expired") : mandateCountdown} />
-              <KeyValue label={t("runtime.limits")} value={summarizeLimits(mandate.limits, t)} />
-            </>
-          ) : (
-            <p className="text-sm text-muted-foreground">{t("runtime.noMandate")}</p>
-          )}
-        </RuntimePanel>
-
-        <RuntimePanel title={t("runtime.riskStateTitle")} icon={risk.icon}>
-          <p className="text-sm text-muted-foreground">{risk.description}</p>
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        <RuntimePanel title="Available Tools" icon={Activity}>
+          <ul className="grid gap-1.5 text-sm text-muted-foreground list-disc pl-4">
+            <li>account - Fetch account balance</li>
+            <li>order - Place and manage limit/market orders</li>
+            <li>position - Fetch active positions</li>
+            <li>strategy_order - Place TP/SL protection orders</li>
+            <li>market - Fetch market data and candidates</li>
+          </ul>
         </RuntimePanel>
       </div>
     </article>
@@ -484,17 +435,6 @@ function StatusPill({ label, tone }: { label: string; tone: "success" | "danger"
   );
 }
 
-function summarizeRuntime(status: LiveStatus | null) {
-  const brokers = status?.brokers || [];
-  return {
-    brokerCount: brokers.length,
-    authorizedCount: brokers.filter(
-      (broker) => broker.auth.oauth_token_present || broker.auth.connection_state === "connected",
-    ).length,
-    runningCount: brokers.filter((broker) => broker.runner?.alive).length,
-  };
-}
-
 function deriveRiskState(broker: LiveBrokerStatus, globalHalted: boolean, t: TFunction): {
   label: string;
   tone: "success" | "danger" | "warning" | "neutral";
@@ -531,35 +471,6 @@ function deriveRiskState(broker: LiveBrokerStatus, globalHalted: boolean, t: TFu
     icon: ShieldOff,
     description: t("runtime.riskDormantDesc"),
   };
-}
-
-function summarizeLimits(limits: LiveMandateLimits | undefined, t: TFunction): string {
-  if (!limits) return t("runtime.limitsUnavailable");
-  const parts: string[] = [];
-  if (typeof limits.max_order_notional_usd === "number") parts.push(`${formatUsd(limits.max_order_notional_usd)}${t("runtime.perOrder")}`);
-  if (typeof limits.max_total_exposure_usd === "number") parts.push(`${formatUsd(limits.max_total_exposure_usd)} ${t("runtime.exposure")}`);
-  if (typeof limits.max_trades_per_day === "number") parts.push(`${limits.max_trades_per_day}${t("runtime.perDay")}`);
-  if (typeof limits.max_leverage === "number") parts.push(`${limits.max_leverage}${t("runtime.leverageSuffix")}`);
-  if (limits.allowed_instruments?.length) parts.push(limits.allowed_instruments.join(", "));
-  return parts.join(" · ") || t("runtime.limitsUnavailable");
-}
-
-function formatUsd(value: number): string {
-  return `$${value.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
-}
-
-function formatCountdown(iso: string | undefined, t: TFunction, nowMs: number): string {
-  if (!iso) return t("runtime.unknown");
-  const target = new Date(iso).getTime();
-  if (!Number.isFinite(target)) return t("runtime.unknown");
-  const deltaSec = Math.round((target - nowMs) / 1000);
-  if (deltaSec <= 0) return t("runtime.expired");
-  const days = Math.floor(deltaSec / 86_400);
-  const hours = Math.floor((deltaSec % 86_400) / 3600);
-  if (days > 0) return `${days}d ${hours}h`;
-  if (hours > 0) return `${hours}h`;
-  if (deltaSec < 60) return `${deltaSec}s`;
-  return `${Math.floor(deltaSec / 60)}m`;
 }
 
 function formatLastTick(

@@ -1,27 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import {
-  CandlestickSeries,
-  ColorType,
-  CrosshairMode,
-  HistogramSeries,
-  LineStyle,
-  LineSeries,
-  createChart,
-  type CandlestickData,
-  type HistogramData,
-  type IChartApi,
-  type ISeriesApi,
-  type LineData,
-  type UTCTimestamp,
-} from "lightweight-charts";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+
 import {
   Activity,
   AlertTriangle,
   Bell,
   Bot,
   CheckCircle2,
-  Gauge,
-  History,
   Layers,
   Loader2,
   RefreshCw,
@@ -41,15 +25,10 @@ import {
   type BitgetRiskDashboard,
   type BitgetSymbolCandidate,
   type BitgetTradeProposal,
-  type BitgetTrailingStopProposal,
-  type CryptoCandle,
 } from "@/lib/api";
 import { withAuthTicket } from "@/lib/apiAuth";
 
-type Candle = CandlestickData<UTCTimestamp>;
-type CandleWithVolume = Candle & { volume: number };
-type LinePoint = LineData<UTCTimestamp>;
-type HistogramPoint = HistogramData<UTCTimestamp>;
+
 type WsState = "connecting" | "live" | "offline";
 
 const CATEGORIES = [
@@ -74,31 +53,7 @@ function normalizeSymbol(value: string): string {
   return compact || "BTCUSDT";
 }
 
-function toTimestamp(value: string | number): UTCTimestamp {
-  const numeric = Number(value);
-  if (Number.isFinite(numeric)) {
-    return Math.floor(numeric > 1_000_000_000_000 ? numeric / 1000 : numeric) as UTCTimestamp;
-  }
-  const parsed = Date.parse(String(value));
-  return Math.floor(parsed / 1000) as UTCTimestamp;
-}
 
-function normalizeBar(bar: CryptoCandle): CandleWithVolume | null {
-  const candle = {
-    time: toTimestamp(bar.time),
-    open: Number(bar.open),
-    high: Number(bar.high),
-    low: Number(bar.low),
-    close: Number(bar.close),
-    volume: Number(bar.volume ?? 0),
-  };
-  return Object.values(candle).every(Number.isFinite) ? candle : null;
-}
-
-function bucketTick(timeMs: number, intervalSeconds: number): UTCTimestamp {
-  const seconds = Math.floor(timeMs / 1000);
-  return (Math.floor(seconds / intervalSeconds) * intervalSeconds) as UTCTimestamp;
-}
 
 function payloadRows(envelope: BitgetMcpEnvelope | null | undefined): Record<string, unknown>[] {
   if (!envelope) return [];
@@ -150,31 +105,7 @@ function formatSignedMoney(value: number | null | undefined): string {
   }).format(value);
 }
 
-function formatCompactNumber(value: number | null | undefined): string {
-  if (value === null || value === undefined || !Number.isFinite(value)) return "Pending";
-  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 4 }).format(value);
-}
 
-function numberFromInput(value: string): number | undefined {
-  if (!value.trim()) return undefined;
-  const numeric = Number(value);
-  return Number.isFinite(numeric) ? numeric : undefined;
-}
-
-function envelopeMessage(envelope: BitgetMcpEnvelope): string {
-  const structured = envelope.structured_content as Record<string, unknown> | undefined;
-  const data = envelope.data as Record<string, unknown> | undefined;
-  const error = envelope.error ?? structured?.error ?? structured?.msg ?? structured?.message ?? data?.error ?? data?.msg ?? data?.message;
-  if (error) return String(error);
-  return String(envelope.status || structured?.status || data?.status || "ok");
-}
-
-function alertToneClass(severity: string): string {
-  const tone = severity.toLowerCase();
-  if (tone === "high" || tone === "critical") return "border-destructive/40 bg-destructive/10 text-destructive";
-  if (tone === "medium" || tone === "warning") return "border-warning/40 bg-warning/10 text-warning";
-  return "border-info/40 bg-info/10 text-info";
-}
 
 function bitgetPositionWsUrl(symbol: string, category: string): string {
   const q = new URLSearchParams();
@@ -185,111 +116,8 @@ function bitgetPositionWsUrl(symbol: string, category: string): string {
   return `${protocol}//${window.location.host}/bitget/ws/positions?${q.toString()}`;
 }
 
-function buildIndicators(bars: CandleWithVolume[]): {
-  ema20: LinePoint[];
-  ema50: LinePoint[];
-  vwap: LinePoint[];
-  volume: HistogramPoint[];
-  rsi: LinePoint[];
-  macd: LinePoint[];
-  macdSignal: LinePoint[];
-  macdHistogram: HistogramPoint[];
-} {
-  const closes = bars.map((bar) => bar.close);
-  const ema12 = emaSeries(closes, 12);
-  const ema26 = emaSeries(closes, 26);
-  const macdValues = ema12.map((value, index) => value - ema26[index]);
-  const signalValues = emaSeries(macdValues, 9);
-
-  return {
-    ema20: toLinePoints(bars, emaSeries(closes, 20)),
-    ema50: toLinePoints(bars, emaSeries(closes, 50)),
-    vwap: vwapPoints(bars),
-    volume: bars.map((bar) => ({
-      time: bar.time,
-      value: bar.volume,
-      color: bar.close >= bar.open ? "rgba(22, 163, 74, 0.45)" : "rgba(220, 38, 38, 0.45)",
-    })),
-    rsi: rsiPoints(bars, 14),
-    macd: toLinePoints(bars, macdValues),
-    macdSignal: toLinePoints(bars, signalValues),
-    macdHistogram: macdValues.map((value, index) => {
-      const histogram = value - signalValues[index];
-      return {
-        time: bars[index].time,
-        value: histogram,
-        color: histogram >= 0 ? "rgba(8, 145, 178, 0.55)" : "rgba(225, 29, 72, 0.55)",
-      };
-    }),
-  };
-}
-
-function toLinePoints(bars: CandleWithVolume[], values: number[]): LinePoint[] {
-  return values
-    .map((value, index) => ({ time: bars[index]?.time, value }))
-    .filter((point): point is LinePoint => point.time !== undefined && Number.isFinite(point.value));
-}
-
-function emaSeries(values: number[], period: number): number[] {
-  if (!values.length) return [];
-  const alpha = 2 / (period + 1);
-  const result: number[] = [];
-  let ema = values[0];
-  for (const value of values) {
-    ema = value * alpha + ema * (1 - alpha);
-    result.push(ema);
-  }
-  return result;
-}
-
-function vwapPoints(bars: CandleWithVolume[]): LinePoint[] {
-  let cumulativePriceVolume = 0;
-  let cumulativeVolume = 0;
-  return bars.map((bar) => {
-    const typical = (bar.high + bar.low + bar.close) / 3;
-    const volume = Math.max(bar.volume, 0);
-    cumulativePriceVolume += typical * volume;
-    cumulativeVolume += volume;
-    return {
-      time: bar.time,
-      value: cumulativeVolume > 0 ? cumulativePriceVolume / cumulativeVolume : bar.close,
-    };
-  });
-}
-
-function rsiPoints(bars: CandleWithVolume[], period: number): LinePoint[] {
-  if (bars.length <= period) return [];
-  const points: LinePoint[] = [];
-  for (let index = period; index < bars.length; index += 1) {
-    const window = bars.slice(index - period, index + 1);
-    let gains = 0;
-    let losses = 0;
-    for (let inner = 1; inner < window.length; inner += 1) {
-      const delta = window[inner].close - window[inner - 1].close;
-      if (delta >= 0) gains += delta;
-      else losses += Math.abs(delta);
-    }
-    const averageGain = gains / period;
-    const averageLoss = losses / period;
-    const value = averageLoss === 0 ? 100 : 100 - (100 / (1 + averageGain / averageLoss));
-    points.push({ time: bars[index].time, value });
-  }
-  return points;
-}
 
 export function CryptoMarket() {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const chartRef = useRef<IChartApi | null>(null);
-  const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
-  const ema20Ref = useRef<ISeriesApi<"Line"> | null>(null);
-  const ema50Ref = useRef<ISeriesApi<"Line"> | null>(null);
-  const vwapRef = useRef<ISeriesApi<"Line"> | null>(null);
-  const volumeRef = useRef<ISeriesApi<"Histogram"> | null>(null);
-  const rsiRef = useRef<ISeriesApi<"Line"> | null>(null);
-  const macdRef = useRef<ISeriesApi<"Line"> | null>(null);
-  const macdSignalRef = useRef<ISeriesApi<"Line"> | null>(null);
-  const macdHistogramRef = useRef<ISeriesApi<"Histogram"> | null>(null);
-  const latestCandleRef = useRef<CandleWithVolume | null>(null);
   const [category, setCategory] = useState<(typeof CATEGORIES)[number]["value"]>("USDT-FUTURES");
   const [symbolInput, setSymbolInput] = useState("BTCUSDT");
   const [symbol, setSymbol] = useState("BTCUSDT");
@@ -297,17 +125,12 @@ export function CryptoMarket() {
   const [symbolFocused, setSymbolFocused] = useState(false);
   const [symbolSearchLoading, setSymbolSearchLoading] = useState(false);
   const [interval, setInterval] = useState("5m");
-  const [bars, setBars] = useState<CandleWithVolume[]>([]);
   const [loading, setLoading] = useState(true);
   const [wsState, setWsState] = useState<WsState>("connecting");
   const [lastPrice, setLastPrice] = useState<number | null>(null);
   const [lastTickAt, setLastTickAt] = useState("");
   const [statusText, setStatusText] = useState("Checking");
-  const [accountRows, setAccountRows] = useState<Record<string, unknown>[]>([]);
   const [positionRows, setPositionRows] = useState<Record<string, unknown>[]>([]);
-  const [orderRows, setOrderRows] = useState<Record<string, unknown>[]>([]);
-  const [fillRows, setFillRows] = useState<Record<string, unknown>[]>([]);
-  const [strategyRows, setStrategyRows] = useState<Record<string, unknown>[]>([]);
   const [riskDashboard, setRiskDashboard] = useState<BitgetRiskDashboard | null>(null);
   const [alerts, setAlerts] = useState<BitgetAlert[]>([]);
   const [positionStreamState, setPositionStreamState] = useState<WsState>("connecting");
@@ -333,185 +156,29 @@ export function CryptoMarket() {
     [category],
   );
 
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
 
-    const chart = createChart(container, {
-      autoSize: true,
-      layout: {
-        background: { type: ColorType.Solid, color: "transparent" },
-        textColor: "hsl(var(--muted-foreground))",
-      },
-      grid: {
-        vertLines: { color: "hsl(var(--border))" },
-        horzLines: { color: "hsl(var(--border))" },
-      },
-      crosshair: { mode: CrosshairMode.Normal },
-      rightPriceScale: { borderColor: "hsl(var(--border))" },
-      timeScale: {
-        borderColor: "hsl(var(--border))",
-        timeVisible: true,
-        secondsVisible: false,
-      },
-    });
-    const series = chart.addSeries(CandlestickSeries, {
-      upColor: "#16a34a",
-      downColor: "#dc2626",
-      borderUpColor: "#16a34a",
-      borderDownColor: "#dc2626",
-      wickUpColor: "#16a34a",
-      wickDownColor: "#dc2626",
-    });
-    const ema20 = chart.addSeries(LineSeries, {
-      color: "#2563eb",
-      lineWidth: 1,
-      priceLineVisible: false,
-      lastValueVisible: false,
-      title: "EMA20",
-    });
-    const ema50 = chart.addSeries(LineSeries, {
-      color: "#f59e0b",
-      lineWidth: 1,
-      priceLineVisible: false,
-      lastValueVisible: false,
-      title: "EMA50",
-    });
-    const vwap = chart.addSeries(LineSeries, {
-      color: "#64748b",
-      lineWidth: 1,
-      lineStyle: LineStyle.Dashed,
-      priceLineVisible: false,
-      lastValueVisible: false,
-      title: "VWAP",
-    });
-    const volume = chart.addSeries(HistogramSeries, {
-      priceFormat: { type: "volume" },
-      priceLineVisible: false,
-      lastValueVisible: false,
-      title: "Volume",
-    }, 1);
-    const rsi = chart.addSeries(LineSeries, {
-      color: "#7c3aed",
-      lineWidth: 1,
-      priceLineVisible: false,
-      lastValueVisible: false,
-      title: "RSI",
-    }, 2);
-    const macdHistogram = chart.addSeries(HistogramSeries, {
-      priceLineVisible: false,
-      lastValueVisible: false,
-      title: "MACD",
-    }, 3);
-    const macd = chart.addSeries(LineSeries, {
-      color: "#0891b2",
-      lineWidth: 1,
-      priceLineVisible: false,
-      lastValueVisible: false,
-      title: "MACD",
-    }, 3);
-    const macdSignal = chart.addSeries(LineSeries, {
-      color: "#e11d48",
-      lineWidth: 1,
-      priceLineVisible: false,
-      lastValueVisible: false,
-      title: "Signal",
-    }, 3);
 
-    chart.panes()[0]?.setStretchFactor(6);
-    chart.panes()[1]?.setStretchFactor(1);
-    chart.panes()[2]?.setStretchFactor(1);
-    chart.panes()[3]?.setStretchFactor(1);
 
-    chartRef.current = chart;
-    seriesRef.current = series;
-    ema20Ref.current = ema20;
-    ema50Ref.current = ema50;
-    vwapRef.current = vwap;
-    volumeRef.current = volume;
-    rsiRef.current = rsi;
-    macdRef.current = macd;
-    macdSignalRef.current = macdSignal;
-    macdHistogramRef.current = macdHistogram;
-
-    return () => {
-      chart.remove();
-      chartRef.current = null;
-      seriesRef.current = null;
-      ema20Ref.current = null;
-      ema50Ref.current = null;
-      vwapRef.current = null;
-      volumeRef.current = null;
-      rsiRef.current = null;
-      macdRef.current = null;
-      macdSignalRef.current = null;
-      macdHistogramRef.current = null;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!seriesRef.current) return;
-    seriesRef.current.setData(bars);
-    const indicators = buildIndicators(bars);
-    ema20Ref.current?.setData(indicators.ema20);
-    ema50Ref.current?.setData(indicators.ema50);
-    vwapRef.current?.setData(indicators.vwap);
-    volumeRef.current?.setData(indicators.volume);
-    rsiRef.current?.setData(indicators.rsi);
-    macdRef.current?.setData(indicators.macd);
-    macdSignalRef.current?.setData(indicators.macdSignal);
-    macdHistogramRef.current?.setData(indicators.macdHistogram);
-    latestCandleRef.current = bars.length ? bars[bars.length - 1] : null;
-    if (bars.length) chartRef.current?.timeScale().fitContent();
-  }, [bars]);
 
   const loadHistory = async () => {
-    setLoading(true);
-    try {
-      const response = await api.getBitgetCandles({ symbol, category, interval, lookback: 200 });
-      const nextBars = response.bars
-        .map(normalizeBar)
-        .filter((bar): bar is CandleWithVolume => Boolean(bar))
-        .sort((a, b) => Number(a.time) - Number(b.time));
-      setBars(nextBars);
-      const latest = nextBars.length ? nextBars[nextBars.length - 1] : null;
-      setLastPrice(latest?.close ?? null);
-      latestCandleRef.current = latest;
-    } catch (error) {
-      toast.error(`Bitget candles failed: ${error instanceof Error ? error.message : "unknown error"}`);
-      setBars([]);
-    } finally {
-      setLoading(false);
-    }
+    setLoading(false);
   };
 
   const loadPrivateState = async () => {
     try {
-      const [status, account, positions, orders, fills, strategyOrders, risk, alertPayload] = await Promise.all([
+      const [status, positions, risk, alertPayload] = await Promise.all([
         api.getBitgetStatus(),
-        api.getBitgetAccount({ category, symbol }),
         api.getBitgetPositions({ category, symbol }),
-        api.getBitgetOrders({ category, symbol }),
-        api.getBitgetFills({ category, symbol, limit: 30 }),
-        api.getBitgetStrategyOrders({ category, symbol, limit: 30 }),
         api.getBitgetRiskDashboard({ category, symbol }),
         api.getBitgetAlerts({ category, symbol }),
       ]);
       setStatusText(status.mcp_available ? (status.credentials_configured ? "MCP ready" : "Public only") : "MCP offline");
-      setAccountRows(payloadRows(account).slice(0, 4));
       setPositionRows(payloadRows(positions).slice(0, 6));
-      setOrderRows(payloadRows(orders).slice(0, 6));
-      setFillRows(payloadRows(fills).slice(0, 8));
-      setStrategyRows(payloadRows(strategyOrders).slice(0, 8));
       setRiskDashboard(risk);
       setAlerts(alertPayload.alerts || []);
     } catch {
       setStatusText("Private reads unavailable");
-      setAccountRows([]);
       setPositionRows([]);
-      setOrderRows([]);
-      setFillRows([]);
-      setStrategyRows([]);
       setRiskDashboard(null);
       setAlerts([]);
     }
@@ -557,7 +224,6 @@ export function CryptoMarket() {
           try {
             const payload = JSON.parse(String(event.data)) as { positions?: BitgetMcpEnvelope; orders?: BitgetMcpEnvelope };
             if (payload.positions) setPositionRows(payloadRows(payload.positions).slice(0, 6));
-            if (payload.orders) setOrderRows(payloadRows(payload.orders).slice(0, 6));
             setPositionStreamState("live");
           } catch {
             // Ignore malformed stream frames; polling still refreshes the panels.
@@ -601,14 +267,7 @@ export function CryptoMarket() {
       const ts = Number(payload.ts || Date.now());
       if (!Number.isFinite(price)) return;
 
-      const time = bucketTick(ts, intervalSpec.seconds);
-      const current = latestCandleRef.current;
-      const next: CandleWithVolume = current && Number(current.time) === Number(time)
-        ? { ...current, high: Math.max(current.high, price), low: Math.min(current.low, price), close: price }
-        : { time, open: price, high: price, low: price, close: price, volume: 0 };
 
-      latestCandleRef.current = next;
-      seriesRef.current?.update(next);
       setLastPrice(price);
       setLastTickAt(new Date(ts).toLocaleTimeString());
     });
@@ -817,13 +476,13 @@ export function CryptoMarket() {
 
         <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
           <div className="relative min-h-[560px] rounded-md border bg-card p-3">
-            <div ref={containerRef} className="h-[540px] w-full" />
-            {loading && !bars.length ? (
-              <div className="absolute inset-3 flex items-center justify-center bg-card/80 text-sm text-muted-foreground">
-                <Loader2 className="me-2 h-4 w-4 animate-spin" />
-                Loading Bitget candles
-              </div>
-            ) : null}
+            <div className="h-[540px] w-full">
+              <iframe
+                src={`https://s.tradingview.com/widgetembed/?frameElementId=tradingview_123&symbol=BITGET:${symbol}${category === "USDT-FUTURES" ? ".P" : ""}&interval=${interval === '1m' ? '1' : interval.replace('m', '')}&hidesidetoolbar=0&symboledit=1&saveimage=1&toolbarbg=f1f3f6&studies=[]&theme=light&style=1&timezone=Etc%2FUTC&withdateranges=1&showpopupbutton=1&studies_overrides={}&overrides={}&enabled_features=[]&disabled_features=[]&locale=en&utm_source=localhost&utm_medium=widget&utm_campaign=chart&utm_term=BITGET%3A${symbol}`}
+                style={{ width: "100%", height: "100%", border: "none", borderRadius: "8px" }}
+                title="TradingView Advanced Chart"
+              />
+            </div>
           </div>
 
           <aside className="flex flex-col gap-4">
@@ -864,21 +523,9 @@ export function CryptoMarket() {
           </aside>
         </section>
 
-        <section className="grid gap-4 lg:grid-cols-3">
-          <DataPanel title="Account Snapshot" rows={accountRows} empty="No private account snapshot" />
-          <DataPanel title="Live Positions" rows={positionRows} empty="No open futures positions" />
-          <DataPanel title="Open Orders" rows={orderRows} empty="No open orders" />
-        </section>
 
-        <section className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
-          <RiskDashboardPanel dashboard={riskDashboard} alerts={alerts} />
-          <TradeManagementPanel category={category} symbol={symbol} onRefresh={() => void loadPrivateState()} />
-        </section>
 
-        <section className="grid gap-4 lg:grid-cols-2">
-          <DataPanel title="Fill Timeline" rows={fillRows} empty="No fills returned by Bitget MCP" />
-          <DataPanel title="TP/SL Orders" rows={strategyRows} empty="No active TP/SL strategy orders" />
-        </section>
+
       </div>
 
       <ConfirmDialog
@@ -987,361 +634,4 @@ function MiniStat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function RiskDashboardPanel({ dashboard, alerts }: { dashboard: BitgetRiskDashboard | null; alerts: BitgetAlert[] }) {
-  const fundingRows = payloadRows(dashboard?.funding);
-  const openInterestRows = payloadRows(dashboard?.open_interest);
-  const orders = payloadRows(dashboard?.orders).length;
-  const strategyOrders = payloadRows(dashboard?.strategy_orders).length;
-  const summary: NonNullable<BitgetRiskDashboard["summary"]> = dashboard?.summary || {};
 
-  return (
-    <section className="rounded-md border bg-card p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-sm font-semibold">
-          <Gauge className="h-4 w-4 text-primary" />
-          Risk Dashboard
-        </div>
-        <div className="text-xs text-muted-foreground">{dashboard?.symbol || "Bitget"}</div>
-      </div>
-
-      <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-4">
-        <MiniStat label="Positions" value={String(summary.positions ?? 0)} />
-        <MiniStat label="PnL" value={formatSignedMoney(summary.estimated_unrealized_pnl_usdt ?? 0)} />
-        <MiniStat label="Exposure" value={formatMoney(summary.estimated_notional_usdt ?? 0)} />
-        <MiniStat label="Orders" value={`${orders} open / ${strategyOrders} TP-SL`} />
-      </div>
-
-      <div className="mt-4 grid gap-3 md:grid-cols-2">
-        <CompactRows title="Funding" rows={fundingRows} empty="No funding data" />
-        <CompactRows title="Open Interest" rows={openInterestRows} empty="No open interest data" />
-      </div>
-
-      <div className="mt-4">
-        <AlertPanel alerts={alerts} />
-      </div>
-    </section>
-  );
-}
-
-function AlertPanel({ alerts }: { alerts: BitgetAlert[] }) {
-  return (
-    <div className="rounded-md border bg-background p-3">
-      <div className="flex items-center gap-2 text-xs font-semibold">
-        <Bell className="h-3.5 w-3.5 text-warning" />
-        Alerts
-      </div>
-      {alerts.length ? (
-        <div className="mt-3 space-y-2">
-          {alerts.slice(0, 6).map((alert, index) => (
-            <div key={`${alert.type}-${index}`} className={`rounded-md border px-3 py-2 text-xs ${alertToneClass(alert.severity)}`}>
-              <div className="font-medium">{alert.type.replace(/_/g, " ")}</div>
-              <div className="mt-1 opacity-90">
-                {alert.symbol || "Bitget"}
-                {alert.distance_percent !== undefined ? ` · ${formatCompactNumber(alert.distance_percent)}% away` : ""}
-                {alert.status ? ` · ${alert.status}` : ""}
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="mt-3 rounded-md border border-dashed p-3 text-xs text-muted-foreground">No active Bitget alerts</div>
-      )}
-    </div>
-  );
-}
-
-function CompactRows({ title, rows, empty }: { title: string; rows: Record<string, unknown>[]; empty: string }) {
-  return (
-    <div className="rounded-md border bg-background p-3">
-      <div className="text-xs font-semibold">{title}</div>
-      {rows.length ? (
-        <div className="mt-2 space-y-2">
-          {rows.slice(0, 3).map((row, index) => (
-            <div key={index} className="text-xs text-muted-foreground">
-              {Object.entries(row).slice(0, 4).map(([key, value]) => (
-                <span key={key} className="mr-3 inline-block">
-                  <span>{key}: </span>
-                  <span className="text-foreground">{String(value)}</span>
-                </span>
-              ))}
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="mt-2 text-xs text-muted-foreground">{empty}</div>
-      )}
-    </div>
-  );
-}
-
-function TradeManagementPanel({ category, symbol, onRefresh }: { category: string; symbol: string; onRefresh: () => void }) {
-  const [posSide, setPosSide] = useState<"long" | "short">("long");
-  const [scaleSide, setScaleSide] = useState<"buy" | "sell">("buy");
-  const [qty, setQty] = useState("");
-  const [takeProfit, setTakeProfit] = useState("");
-  const [stopLoss, setStopLoss] = useState("");
-  const [strategyOrderId, setStrategyOrderId] = useState("");
-  const [confirmationText, setConfirmationText] = useState("");
-  const [dryRun, setDryRun] = useState(true);
-  const [callbackPercent, setCallbackPercent] = useState("1");
-  const [actionLoading, setActionLoading] = useState("");
-  const [actionResult, setActionResult] = useState("");
-  const [trailingProposal, setTrailingProposal] = useState<BitgetTrailingStopProposal | null>(null);
-
-  const qtyValue = numberFromInput(qty);
-  const takeProfitValue = numberFromInput(takeProfit);
-  const stopLossValue = numberFromInput(stopLoss);
-  const callbackValue = numberFromInput(callbackPercent) ?? 1;
-  const busy = Boolean(actionLoading);
-  const hasConfirmation = confirmationText.trim().length > 0;
-  const hasTargets = takeProfitValue !== undefined || stopLossValue !== undefined;
-
-  const runEnvelopeAction = async (label: string, action: () => Promise<BitgetMcpEnvelope>) => {
-    setActionLoading(label);
-    setActionResult("");
-    try {
-      const response = await action();
-      const message = envelopeMessage(response);
-      setActionResult(`${label}: ${message}`);
-      if (String(response.status || "").toLowerCase() === "error" || response.error) {
-        toast.error(message);
-      } else {
-        toast.success(`${label} submitted`);
-        onRefresh();
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "unknown error";
-      setActionResult(`${label}: ${message}`);
-      toast.error(message);
-    } finally {
-      setActionLoading("");
-    }
-  };
-
-  const runTrailingProposal = async () => {
-    setActionLoading("Trailing proposal");
-    setActionResult("");
-    try {
-      const response = await api.createBitgetTrailingStopProposal({
-        symbol,
-        category,
-        pos_side: posSide,
-        callback_percent: callbackValue,
-      });
-      setTrailingProposal(response);
-      setActionResult(response.message || "Trailing stop proposal ready");
-      toast.success("Trailing stop proposal ready");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "unknown error";
-      setActionResult(`Trailing proposal: ${message}`);
-      toast.error(message);
-    } finally {
-      setActionLoading("");
-    }
-  };
-
-  return (
-    <section className="rounded-md border bg-card p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-sm font-semibold">
-          <Target className="h-4 w-4 text-primary" />
-          Position Management
-        </div>
-        <label className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-          <input
-            type="checkbox"
-            checked={dryRun}
-            onChange={(event) => setDryRun(event.target.checked)}
-            className="h-4 w-4 rounded border"
-          />
-          Dry run
-        </label>
-      </div>
-
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <label className="text-xs font-medium">
-          Position Side
-          <select
-            value={posSide}
-            onChange={(event) => setPosSide(event.target.value as "long" | "short")}
-            className="mt-1 h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-          >
-            <option value="long">Long</option>
-            <option value="short">Short</option>
-          </select>
-        </label>
-        <label className="text-xs font-medium">
-          Scale Side
-          <select
-            value={scaleSide}
-            onChange={(event) => setScaleSide(event.target.value as "buy" | "sell")}
-            className="mt-1 h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-          >
-            <option value="buy">Buy</option>
-            <option value="sell">Sell</option>
-          </select>
-        </label>
-        <label className="text-xs font-medium">
-          Qty
-          <input
-            value={qty}
-            onChange={(event) => setQty(event.target.value)}
-            inputMode="decimal"
-            className="mt-1 h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-          />
-        </label>
-        <label className="text-xs font-medium">
-          Callback %
-          <input
-            value={callbackPercent}
-            onChange={(event) => setCallbackPercent(event.target.value)}
-            inputMode="decimal"
-            className="mt-1 h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-          />
-        </label>
-        <label className="text-xs font-medium">
-          Take Profit
-          <input
-            value={takeProfit}
-            onChange={(event) => setTakeProfit(event.target.value)}
-            inputMode="decimal"
-            className="mt-1 h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-          />
-        </label>
-        <label className="text-xs font-medium">
-          Stop Loss
-          <input
-            value={stopLoss}
-            onChange={(event) => setStopLoss(event.target.value)}
-            inputMode="decimal"
-            className="mt-1 h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-          />
-        </label>
-        <label className="text-xs font-medium sm:col-span-2">
-          Strategy Order ID
-          <input
-            value={strategyOrderId}
-            onChange={(event) => setStrategyOrderId(event.target.value)}
-            className="mt-1 h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-          />
-        </label>
-        <label className="text-xs font-medium sm:col-span-2">
-          Confirmation
-          <input
-            value={confirmationText}
-            onChange={(event) => setConfirmationText(event.target.value)}
-            placeholder="confirm"
-            className="mt-1 h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-          />
-        </label>
-      </div>
-
-      <div className="mt-4 grid gap-2 sm:grid-cols-2">
-        <button
-          type="button"
-          disabled={busy || !hasConfirmation || !hasTargets}
-          onClick={() => void runEnvelopeAction("TP/SL update", () => api.updateBitgetTpsl({
-            symbol,
-            category,
-            pos_side: posSide,
-            take_profit: takeProfitValue ?? null,
-            stop_loss: stopLossValue ?? null,
-            qty: qtyValue ?? null,
-            strategy_order_id: strategyOrderId.trim() || null,
-            confirmation_text: confirmationText,
-            dry_run: dryRun,
-          }))}
-          className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {actionLoading === "TP/SL update" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Target className="h-4 w-4" />}
-          Modify TP/SL
-        </button>
-        <button
-          type="button"
-          disabled={busy || !hasConfirmation || qtyValue === undefined}
-          onClick={() => void runEnvelopeAction("Partial close", () => api.partialCloseBitgetPosition({
-            symbol,
-            category,
-            pos_side: posSide,
-            qty: qtyValue ?? 0,
-            confirmation_text: confirmationText,
-            dry_run: dryRun,
-          }))}
-          className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-destructive/40 bg-destructive px-3 text-sm font-medium text-destructive-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {actionLoading === "Partial close" ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-          Partial Close
-        </button>
-        <button
-          type="button"
-          disabled={busy || !hasConfirmation || qtyValue === undefined}
-          onClick={() => void runEnvelopeAction("Scale position", () => api.scaleBitgetPosition({
-            symbol,
-            category,
-            side: scaleSide,
-            qty: qtyValue ?? 0,
-            pos_side: posSide,
-            confirmation_text: confirmationText,
-            dry_run: dryRun,
-          }))}
-          className="inline-flex h-9 items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {actionLoading === "Scale position" ? <Loader2 className="h-4 w-4 animate-spin" /> : <TrendingUp className="h-4 w-4" />}
-          Scale Position
-        </button>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => void runTrailingProposal()}
-          className="inline-flex h-9 items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {actionLoading === "Trailing proposal" ? <Loader2 className="h-4 w-4 animate-spin" /> : <History className="h-4 w-4" />}
-          Trail Proposal
-        </button>
-      </div>
-
-      {trailingProposal ? (
-        <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
-          <MiniStat label="Last" value={formatPrice(trailingProposal.last_price)} />
-          <MiniStat label="Callback" value={`${formatCompactNumber(trailingProposal.callback_percent)}%`} />
-          <MiniStat label="Stop" value={formatPrice(trailingProposal.suggested_stop)} />
-        </div>
-      ) : null}
-
-      {actionResult ? <div className="mt-3 rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">{actionResult}</div> : null}
-    </section>
-  );
-}
-
-function DataPanel({ title, rows, empty }: { title: string; rows: Record<string, unknown>[]; empty: string }) {
-  return (
-    <section className="rounded-md border bg-card p-4">
-      <div className="text-sm font-semibold">{title}</div>
-      {rows.length ? (
-        <div className="mt-3 max-h-64 overflow-auto rounded-md border">
-          <table className="w-full text-left text-xs">
-            <tbody>
-              {rows.map((row, index) => (
-                <tr key={index} className="border-b last:border-0">
-                  <td className="w-28 px-3 py-2 font-medium text-muted-foreground">
-                    {String(row.symbol || row.instId || row.coin || row.category || row.orderId || row.tradeId || `Row ${index + 1}`)}
-                  </td>
-                  <td className="px-3 py-2">
-                    {Object.entries(row).slice(0, 5).map(([key, value]) => (
-                      <span key={key} className="mr-3 inline-block">
-                        <span className="text-muted-foreground">{key}: </span>
-                        {String(value)}
-                      </span>
-                    ))}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <div className="mt-3 rounded-md border border-dashed p-4 text-sm text-muted-foreground">{empty}</div>
-      )}
-    </section>
-  );
-}

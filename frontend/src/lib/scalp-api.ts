@@ -77,6 +77,7 @@ export interface ScalpSessionData {
     consecutive_losses: number;
     current_risk_multiplier: number;
   };
+  latest_cycle?: any;
 }
 
 export interface ScalpCandidate {
