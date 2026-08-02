@@ -61,11 +61,13 @@ def build_risk_plan(intent: dict[str, Any], signal: dict[str, Any]) -> dict[str,
     if category != "SPOT" and leverage > 5:
         warnings.append("High leverage increases liquidation risk; keep margin small and stops firm.")
 
+    price_prec = _price_precision(signal.get("symbol"))
+
     return {
         "direction": direction,
-        "entry": _round_price(entry),
-        "stop_loss": _round_price(stop_loss),
-        "take_profit": _round_price(take_profit),
+        "entry": _round_price(entry, price_prec),
+        "stop_loss": _round_price(stop_loss, price_prec),
+        "take_profit": _round_price(take_profit, price_prec),
         "risk_reward": round(reward / risk, 2) if risk else None,
         "expected_duration": _expected_duration(str(intent.get("timeframe") or "15m")),
         "suggested_leverage": leverage,
@@ -101,13 +103,28 @@ def _quantity_precision(symbol_info: Any) -> int:
     return 6
 
 
+def _price_precision(symbol_info: Any) -> int:
+    if isinstance(symbol_info, dict):
+        raw = symbol_info.get("price_precision")
+        if raw is not None:
+            try:
+                return max(0, min(12, int(raw)))
+            except (TypeError, ValueError):
+                pass
+    return 2
+
+
 def _round_qty(value: float, precision: int) -> float:
     if not math.isfinite(value) or value <= 0:
         return 0.0
     return round(value, precision)
 
 
-def _round_price(value: float) -> float:
+def _round_price(value: float, precision: int | None = None) -> float:
+    if not math.isfinite(value) or value <= 0:
+        return 0.0
+    if precision is not None:
+        return round(value, precision)
     if value >= 100:
         return round(value, 2)
     if value >= 1:

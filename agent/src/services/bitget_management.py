@@ -87,23 +87,33 @@ def modify_tpsl(
         "category": normalize_category(category),
         "symbol": normalize_symbol(symbol),
         "posSide": str(pos_side or "long").lower(),
-        "type": "tpsl",
         "tpslMode": "partial" if qty else "full",
-        "tpTriggerBy": "market",
-        "slTriggerBy": "market",
-        "tpOrderType": "market",
-        "slOrderType": "market",
         "dryRun": bool(dry_run),
         "confirm": True,
     }
-    if strategy_order_id:
-        args["orderId"] = str(strategy_order_id)
-    if qty:
-        args["qty"] = str(qty)
+    
     if take_profit is not None:
+        args["tpTriggerBy"] = "market"
+        args["tpOrderType"] = "market"
         args["takeProfit"] = str(take_profit)
     if stop_loss is not None:
+        args["slTriggerBy"] = "market"
+        args["slOrderType"] = "market"
         args["stopLoss"] = str(stop_loss)
+
+    if not strategy_order_id:
+        args["planType"] = "position_tpsl"
+        args["marginCoin"] = "USDT"
+        args["marginMode"] = "isolated"
+        if take_profit is None:
+             args["takeProfit"] = ""
+        if stop_loss is None:
+             args["stopLoss"] = ""
+    else:
+        args["orderId"] = str(strategy_order_id)
+            
+    if qty:
+        args["qty"] = str(qty)
     if take_profit is None and stop_loss is None:
         return {"status": "error", "error": "take_profit or stop_loss is required"}
     return call_bitget_tool("strategy_order", args)
@@ -131,7 +141,8 @@ def partial_close_position(
             "posSide": str(pos_side or "long").lower(),
             "qty": str(qty),
             "orderType": "market",
-            "reduceOnly": "yes",
+            "marginCoin": "USDT",
+            "marginMode": "isolated",
             "dryRun": bool(dry_run),
             "confirm": True,
         },
@@ -158,7 +169,8 @@ def scale_position(
         "side": normalized_side,
         "qty": str(qty),
         "orderType": "market",
-        "reduceOnly": "no",
+        "marginCoin": "USDT",
+        "marginMode": "isolated",
         "dryRun": bool(dry_run),
         "confirm": True,
     }
