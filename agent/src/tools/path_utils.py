@@ -92,6 +92,7 @@ def _default_file_roots() -> list[Path]:
     return [
         agent_root / "uploads",
         agent_root / "runs",
+        agent_root.parent / "frontend" / "public" / "charts",
         cwd / "uploads",
         cwd / "data",
         home / ".vibe-trading" / "uploads",

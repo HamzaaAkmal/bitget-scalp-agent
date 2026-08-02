@@ -138,7 +138,7 @@ _NO_NETWORK_FALLBACK_SOURCES: frozenset[str] = frozenset({"local", "qveris"})  #
 # that must be politely throttled; Finnhub/AlphaVantage/Tiingo/FMP are key-gated
 # REST fallbacks placed deeper in the chain.
 FALLBACK_CHAINS: dict[str, list[str]] = {
-    "a_share":   ["tencent", "mootdx", "eastmoney", "baostock", "akshare", "tushare", "local"],
+    "a_share":   ["tencent", "mootdx", "eastmoney", "baostock", "akshare", "local"],
     "us_equity": ["yahoo", "stooq", "sina", "eastmoney", "yfinance", "tiingo", "fmp", "finnhub", "alphavantage", "longbridge", "akshare", "local"],
     "hk_equity": ["eastmoney", "yahoo", "futu", "yfinance", "akshare", "longbridge", "local"],
     "india_equity": ["yahoo", "yfinance", "india_broker", "local"],
@@ -146,9 +146,9 @@ FALLBACK_CHAINS: dict[str, list[str]] = {
     # Bitget MCP is the primary crypto market-data provider; Coinbase remains
     # as a degraded public-data fallback for legacy compatibility.
     "crypto":    ["bitget", "coinbase", "local"],
-    "futures":   ["tushare", "akshare", "local"],
-    "fund":      ["tushare", "akshare", "local"],
-    "macro":     ["akshare", "tushare", "local"],
+    "futures":   ["akshare", "local"],
+    "fund":      ["akshare", "local"],
+    "macro":     ["akshare", "local"],
     # mt5 leads when a local MetaTrader 5 terminal is attached (Windows-only,
     # broker feed); otherwise it reports unavailable and the chain proceeds.
     "forex":     ["mt5", "akshare", "yfinance", "local"],

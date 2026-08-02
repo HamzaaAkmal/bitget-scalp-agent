@@ -142,7 +142,32 @@ def _bitget_market_data_json(*, codes: list[str], interval: str, max_rows: int) 
         symbol = normalize_symbol(code)
         bars = fetch_candles(symbol=symbol, category=normalize_category("USDT-FUTURES"), interval=interval, lookback=limit)
         key = symbol.removesuffix("USDT") + "-USDT" if symbol.endswith("USDT") else symbol
+        
+        live_price = None
+        try:
+            from src.scalp.services.coingecko_client import get_coingecko_client
+            cg = get_coingecko_client()
+            cg_markets = cg.get_coins_markets(limit=250)
+            cg_symbol = symbol.removesuffix("USDT").lower()
+            for m in cg_markets:
+                if m.get("symbol") == cg_symbol:
+                    live_price = m.get("current_price")
+                    break
+        except Exception:
+            pass
+            
+        if live_price is None:
+            try:
+                from src.services.bitget_mcp import fetch_ticker
+                ticker = fetch_ticker(symbol=symbol)
+                live_price = float(ticker.get("lastPr", ticker.get("last", 0)))
+            except Exception:
+                pass
+                
         results[key] = {"data": bars}
+        if live_price is not None:
+            results[key]["current_live_price"] = live_price
+            
         provenance[key] = {"source": "bitget", "requested_source": "bitget", "fallback_used": False}
     results["_provenance"] = provenance
     import json

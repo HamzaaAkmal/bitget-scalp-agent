@@ -43,33 +43,6 @@ const markdownComponents: ReactMarkdownOptions["components"] = {
   },
   code: ({ node, inline, className, children, ...props }: any) => {
     void node;
-    const match = /language-(\w+)/.exec(className || "");
-    const lang = match ? match[1] : "";
-
-    if (!inline && lang === "tradingview") {
-      try {
-        const payload = JSON.parse(String(children).trim());
-        const symbol = payload.symbol || "BTCUSDT";
-        const interval = payload.interval || "1m";
-        const category = payload.category || "USDT-FUTURES";
-        
-        const tvInterval = interval === '1m' ? '1' : interval.replace('m', '').toUpperCase();
-        const src = `https://s.tradingview.com/widgetembed/?frameElementId=tradingview_123&symbol=BITGET:${symbol}${category === "USDT-FUTURES" ? ".P" : ""}&interval=${tvInterval}&hidesidetoolbar=0&symboledit=1&saveimage=1&toolbarbg=f1f3f6&studies=[]&theme=dark&style=1&timezone=Etc%2FUTC&withdateranges=1&showpopupbutton=1&studies_overrides={}&overrides={}&enabled_features=[]&disabled_features=[]&locale=en&utm_source=localhost&utm_medium=widget&utm_campaign=chart&utm_term=BITGET%3A${symbol}`;
-        
-        return (
-          <div className="relative min-h-[400px] w-full my-4 rounded-md border border-border/50 bg-card p-2 overflow-hidden">
-            <iframe
-              src={src}
-              style={{ width: "100%", height: "100%", minHeight: "380px", border: "none", borderRadius: "6px" }}
-              title={`TradingView Chart: ${symbol}`}
-            />
-          </div>
-        );
-      } catch (err) {
-        // Fallback if not valid JSON
-        return <code className={className} {...props}>{children}</code>;
-      }
-    }
     return <code className={className} {...props}>{children}</code>;
   },
 };
