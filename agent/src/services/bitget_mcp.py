@@ -322,6 +322,11 @@ def normalize_symbol(symbol: str) -> str:
     value = str(symbol or "").strip().upper().replace("/", "").replace("-", "")
     if value.endswith("USD") and not value.endswith("USDT"):
         value = f"{value[:-3]}USDT"
+    
+    known_quotes = ("USDT", "USDC", "BTC", "ETH", "BGB", "EUR")
+    if value and not any(value.endswith(q) for q in known_quotes):
+        value = f"{value}USDT"
+        
     return value
 
 

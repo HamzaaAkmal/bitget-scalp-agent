@@ -53,10 +53,15 @@ def _is_date_only(value: str) -> bool:
 
 def _display_code(code: str) -> str:
     value = code.strip().upper().replace("/", "-")
-    if "-" not in value and value.endswith("USDT"):
-        return f"{value.removesuffix('USDT')}-USDT"
-    if value.endswith("-USD"):
-        return value.removesuffix("-USD") + "-USDT"
+    
+    known_quotes = ("-USDT", "-USDC", "-BTC", "-ETH", "-BGB", "-EUR")
+    if value and not any(value.endswith(q) for q in known_quotes):
+        if value.endswith("USDT") and "-" not in value:
+            value = f"{value.removesuffix('USDT')}-USDT"
+        elif value.endswith("-USD"):
+            value = value.removesuffix("-USD") + "-USDT"
+        elif "-" not in value:
+            value = f"{value}-USDT"
     return value
 
 

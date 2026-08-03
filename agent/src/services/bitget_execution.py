@@ -53,10 +53,23 @@ def execute_confirmed_trade(
             "leverage": str(leverage),
             "confirm": True,
         }
+        if category == "USDT-FUTURES":
+            leverage_args["marginCoin"] = "USDT"
+            
         pos_side = "long" if side == "buy" else "short"
         if str(proposal.get("margin_mode") or "").lower().startswith("isolated"):
             leverage_args["posSide"] = pos_side
-        actions.append({"step": "set_leverage", "result": call_bitget_tool("account_config", leverage_args)})
+            
+        lev_res = call_bitget_tool("account_config", leverage_args)
+        actions.append({"step": "set_leverage", "result": lev_res})
+        
+        if str(lev_res.get("status", "")).lower() != "ok":
+            err_msg = lev_res.get("error") or lev_res.get("message") or "Unknown leverage error"
+            return {
+                "status": "error",
+                "error": f"CRITICAL: Failed to apply {leverage}x leverage on Bitget. Aborting trade execution. ({err_msg})",
+                "actions": actions,
+            }
 
     from src.services.bitget_symbols import format_bitget_price, format_bitget_qty
 

@@ -96,38 +96,197 @@ def register_scalp_routes(app: FastAPI) -> None:
         if not session:
             raise HTTPException(status_code=404, detail="Session not found")
 
-        # Run cycle update on GET poll to keep real-time updates fresh
-        cycle_res = {}
-        if session.status == "ACTIVE":
-            cycle_res = get_session_manager().run_session_cycle(session_id)
-            session = get_session_manager().get_session(session_id) or session
+        # GET endpoints are strictly side-effect free (no run_session_cycle invocation on read)
+        stored_trades = get_session_manager().store.get_session_trades(session_id)
+        symbol_active_map: Dict[str, Dict[str, Any]] = {}
 
-        active_trade = None
-        if session.active_position_id:
-            trade = get_session_manager()._active_trades.get(session.active_position_id)
-            if not trade:
-                stored_trades = get_session_manager().store.get_session_trades(session_id)
-                for st in stored_trades:
-                    if st.get("trade_id") == session.active_position_id:
-                        from src.scalp.models.scalp_trade import ScalpTrade
-                        from src.scalp.services.scalp_position_monitor import ScalpPositionMonitor
-                        trade_obj = ScalpTrade(**st)
-                        trade_obj = ScalpPositionMonitor.update_position(trade_obj)
-                        get_session_manager()._active_trades[session.active_position_id] = trade_obj
-                        trade = trade_obj
-                        break
-            if trade:
-                active_trade = trade.model_dump()
+        # 1. Process stored trades, deduplicating by symbol (keep latest active trade per symbol)
+        for st in stored_trades:
+            if st.get("status") == "OPEN":
+                from src.scalp.models.scalp_trade import ScalpTrade
+                from src.scalp.services.scalp_position_monitor import ScalpPositionMonitor
+                trade_obj = ScalpTrade(**st)
+                trade_obj = ScalpPositionMonitor.update_position(trade_obj)
+                get_session_manager()._active_trades[trade_obj.trade_id] = trade_obj
+                if trade_obj.status == "OPEN":
+                    sym = trade_obj.symbol
+                    # Deduplicate by symbol (keep the most recent active trade)
+                    if sym not in symbol_active_map:
+                        symbol_active_map[sym] = trade_obj.model_dump()
+                    else:
+                        # Close older duplicate stored trade in memory/db
+                        old_trade_id = symbol_active_map[sym]["trade_id"]
+                        if trade_obj.trade_id > old_trade_id:
+                            symbol_active_map[sym] = trade_obj.model_dump()
 
-        recent_trades = get_session_manager().store.get_session_trades(session_id)
+        # 2. Direct Exchange query to reconcile exact live Bitget positions
+        import time
+        from src.services.bitget_positions import get_positions
+        from src.scalp.services.coingecko_client import get_coingecko_client
+
+        cg = get_coingecko_client()
+        try:
+            pos_res = get_positions(category="USDT-FUTURES")
+            payload = pos_res.get("structured_content") or pos_res.get("data") or {}
+            pos_list = (payload.get("data") or {}).get("list") if isinstance(payload.get("data"), dict) else payload.get("list")
+            if isinstance(pos_list, list):
+                for p in pos_list:
+                    sym = p.get("symbol", "")
+                    total_qty = float(p.get("total") or 0.0)
+                    if sym and total_qty > 0:
+                        side = "LONG" if str(p.get("posSide") or "").lower() in ("long", "buy") else "SHORT"
+                        avg_px = float(p.get("avgPrice") or 0.0)
+                        mark_px = float(p.get("markPrice") or avg_px)
+                        lev = int(p.get("leverage") or 20)
+                        unrealized = float(p.get("unrealisedPnl") or 0.0)
+                        
+                        # Update or synthesize exact live exchange position
+                        if sym in symbol_active_map:
+                            t = symbol_active_map[sym]
+                            t["leverage"] = lev
+                            t["margin_mode"] = str(p.get("marginMode") or t.get("margin_mode") or "isolated").lower()
+                            t["entry_price"] = avg_px if avg_px > 0 else t.get("entry_price", 0.0)
+                            t["current_price"] = mark_px if mark_px > 0 else t.get("current_price", 0.0)
+                            t["direction"] = side
+                            t["unrealized_pnl_usdt"] = round(unrealized, 4)
+                        else:
+                            synth_trade = {
+                                "trade_id": f"trd_bg_{sym.lower()}",
+                                "session_id": session_id,
+                                "symbol": sym,
+                                "direction": side,
+                                "status": "OPEN",
+                                "entry_price": avg_px,
+                                "current_price": mark_px,
+                                "leverage": lev,
+                                "margin_mode": str(p.get("marginMode") or "isolated").lower(),
+                                "margin_usdt": float(p.get("positionBalance") or 5.0),
+                                "position_size_usdt": float(p.get("positionBalance") or 5.0) * lev,
+                                "unrealized_pnl_usdt": round(unrealized, 4),
+                                "unrealized_pnl_pct": round(((mark_px - avg_px)/avg_px * 100 * lev) if side == "LONG" else ((avg_px - mark_px)/avg_px * 100 * lev), 2) if avg_px > 0 else 0.0,
+                                "take_profit_price": round(avg_px * (1.02 if side == "LONG" else 0.98), 4),
+                                "stop_loss_price": round(avg_px * (0.99 if side == "LONG" else 1.01), 4),
+                                "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                                "proposal": {
+                                    "strategy_name": "Bitget Live Exchange Position",
+                                    "market_regime": "RECONCILED",
+                                    "why_this_trade": {
+                                        "expected_net_edge": f"+{max(0.1, unrealized):.2f} USDT live",
+                                        "market_selection": f"Reconciled direct from Bitget futures account ({lev}x {side})",
+                                    }
+                                }
+                            }
+                            symbol_active_map[sym] = synth_trade
+        except Exception:
+            pass
+
+        # 3. Enrich active trades with CoinGecko Icons, 24h Volume & Market Cap
+        active_trades = list(symbol_active_map.values())
+        try:
+            cg_markets = cg.get_coins_markets()
+            cg_map = {}
+            for m in cg_markets:
+                sym_code = m.get("symbol", "").upper()
+                cg_map[sym_code] = m
+
+            for t in active_trades:
+                clean_sym = t.get("symbol", "").replace("USDT", "").replace("USD", "").upper()
+                cg_data = cg_map.get(clean_sym, {})
+                t["coin_icon"] = cg_data.get("image") or cg.get_symbol_icon(clean_sym)
+                t["coingecko_volume_24h"] = cg_data.get("total_volume") or 0.0
+                t["coingecko_market_cap"] = cg_data.get("market_cap") or 0.0
+                t["coingecko_rank"] = cg_data.get("market_cap_rank") or 0
+        except Exception:
+            for t in active_trades:
+                clean_sym = t.get("symbol", "").replace("USDT", "").replace("USD", "").upper()
+                t["coin_icon"] = cg.get_symbol_icon(clean_sym)
+                t["coingecko_volume_24h"] = 0.0
+                t["coingecko_market_cap"] = 0.0
+                t["coingecko_rank"] = 0
+
+        active_trade = active_trades[-1] if active_trades else None
+
+        pending_proposal = None
+        if session.active_proposal_id:
+            pending_proposal = get_session_manager().store.get_proposal(session.active_proposal_id)
 
         return {
             "status": "ok",
             "session": session.model_dump(),
             "active_trade": active_trade,
-            "recent_trades": recent_trades,
-            "latest_cycle": cycle_res,
+            "active_trades": active_trades,
+            "pending_proposal": pending_proposal,
+            "recent_trades": stored_trades,
         }
+
+    @app.get("/scalp/sessions/{session_id}/logs", dependencies=deps)
+    async def get_session_logs(session_id: str, limit: int = 50) -> Dict[str, Any]:
+        mgr = get_session_manager()
+        logs = mgr.get_agent_logs(session_id, limit=limit)
+        return {
+            "status": "ok",
+            "session_id": session_id,
+            "logs": logs,
+        }
+
+    @app.get("/scalp/sessions/{session_id}/events", dependencies=deps)
+    async def stream_session_events(session_id: str):
+        from fastapi.responses import StreamingResponse
+        from src.scalp.streaming.scalp_event_stream import scalp_event_generator
+        return StreamingResponse(scalp_event_generator(session_id), media_type="text/event-stream")
+
+    @app.post("/scalp/sessions/{session_id}/pause", dependencies=deps)
+    async def pause_session(session_id: str) -> Dict[str, Any]:
+        mgr = get_session_manager()
+        session = mgr.get_session(session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        session.status = "PAUSED"
+        mgr.store.save_session(session.model_dump())
+        return {"status": "ok", "message": "Session paused.", "session": session.model_dump()}
+
+    @app.post("/scalp/sessions/{session_id}/resume", dependencies=deps)
+    async def resume_session(session_id: str) -> Dict[str, Any]:
+        mgr = get_session_manager()
+        session = mgr.get_session(session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        session.status = "ACTIVE"
+        mgr.store.save_session(session.model_dump())
+        return {"status": "ok", "message": "Session resumed.", "session": session.model_dump()}
+
+    @app.post("/scalp/positions/{trade_id}/close", dependencies=deps)
+    async def manual_close_position(trade_id: str) -> Dict[str, Any]:
+        mgr = get_session_manager()
+        trade_obj = mgr._active_trades.get(trade_id)
+        if not trade_obj:
+            stored_trades = mgr.store.get_latest_trade()
+            if stored_trades and stored_trades.get("trade_id") == trade_id:
+                trade_dict = stored_trades
+            else:
+                raise HTTPException(status_code=404, detail="Active trade not found")
+        else:
+            trade_dict = trade_obj.model_dump()
+
+        if trade_dict.get("status") == "CLOSED":
+            return {"status": "ok", "message": "Position already closed.", "trade": trade_dict}
+
+        from src.scalp.execution.execution_gateway import get_execution_gateway
+        gateway = get_execution_gateway()
+        res = gateway.close_position(trade_dict, reason="MANUAL_USER_CLOSE", dry_run=False)
+
+        if res.get("status") == "ok":
+            closed_trade = res["trade"]
+            session_id = closed_trade.get("session_id")
+            session = mgr.get_session(session_id)
+            if session:
+                session.active_position_id = None
+                session.session_pnl_usdt += closed_trade.get("net_pnl_usdt", 0.0)
+                session.current_capital_usdt += closed_trade.get("net_pnl_usdt", 0.0)
+                mgr.store.save_session(session.model_dump())
+            return {"status": "ok", "trade": closed_trade}
+        else:
+            raise HTTPException(status_code=500, detail=res.get("error", "Manual close failed"))
 
     @app.get("/scalp/market/candidates", dependencies=deps)
     async def get_market_candidates() -> Dict[str, Any]:
@@ -197,15 +356,48 @@ def register_scalp_routes(app: FastAPI) -> None:
     async def confirm_copilot_trade(session_id: str, body: ConfirmProposalRequest) -> Dict[str, Any]:
         mgr = get_session_manager()
         session = mgr.get_session(session_id)
-        if not session or not session.active_proposal_id:
-            raise HTTPException(status_code=400, detail="No active proposal to confirm")
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
 
-        # Execute confirmed proposal
-        from src.scalp.models.trade_proposal import TradeProposal
-        # Execute trade
-        from src.scalp.services.scalp_execution_service import get_execution_service
-        # Simulate / Execute
-        trade_id = f"trd_conf_{int(time.time())}"
-        session.active_proposal_id = None
-        mgr.store.save_session(session.model_dump())
-        return {"status": "ok", "message": "Proposal confirmed and trade submitted to Bitget execution layer."}
+        proposal_id = body.proposal_id or session.active_proposal_id
+        if not proposal_id:
+            raise HTTPException(status_code=400, detail="No proposal_id specified or active for confirmation")
+
+        proposal_data = mgr.store.get_proposal(proposal_id)
+        if not proposal_data:
+            raise HTTPException(status_code=404, detail=f"Proposal {proposal_id} not found in database")
+
+        # Check proposal expiration
+        exp_str = proposal_data.get("_expires_at", "")
+        if exp_str:
+            try:
+                exp_ts = time.mktime(time.strptime(exp_str, "%Y-%m-%dT%H:%M:%SZ"))
+                if time.time() > exp_ts:
+                    raise HTTPException(status_code=400, detail="Trade proposal has expired; fresh analysis required.")
+            except HTTPException:
+                raise
+            except Exception:
+                pass
+
+        # Execute through ExecutionGateway
+        from src.scalp.execution.execution_gateway import get_execution_gateway
+        gateway = get_execution_gateway()
+        exec_res = gateway.execute_proposal(
+            session_id=session_id,
+            proposal=proposal_data,
+            available_capital_usdt=session.current_capital_usdt,
+            dry_run=False,
+        )
+
+        if exec_res.get("status") == "ok":
+            trade_dict = exec_res["trade"]
+            from src.scalp.models.scalp_trade import ScalpTrade
+            trade_obj = ScalpTrade(**trade_dict)
+            mgr._active_trades[trade_obj.trade_id] = trade_obj
+            session.active_position_id = trade_obj.trade_id
+            session.active_proposal_id = None
+            mgr.store.save_session(session.model_dump())
+            return {"status": "ok", "message": "Copilot proposal confirmed and executed.", "trade": trade_dict}
+        else:
+            raise HTTPException(status_code=500, detail=exec_res.get("error", "Execution failed"))
+

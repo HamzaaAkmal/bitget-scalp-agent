@@ -10,7 +10,7 @@ from src.agent.tools import BaseTool
 from src.market_data import DEFAULT_MAX_ROWS, fetch_market_data_json
 from src.services.bitget_mcp import fetch_candles, normalize_category, normalize_interval, normalize_symbol
 
-_CRYPTO_SYMBOL_RE = re.compile(r"^[A-Z0-9]{2,15}[-/](?:USD|USDT|USDC|BTC|ETH)$", re.I)
+_CRYPTO_SYMBOL_RE = re.compile(r"^[A-Z0-9]{2,15}(?:[-/](?:USD|USDT|USDC|BTC|ETH))?$", re.I)
 
 
 def _normalize_crypto_codes(codes: list[str]) -> list[str]:
@@ -20,6 +20,14 @@ def _normalize_crypto_codes(codes: list[str]) -> list[str]:
         value = code.strip().upper().replace("/", "-")
         if value.endswith("-USD"):
             value = value.removesuffix("-USD") + "-USDT"
+            
+        known_quotes = ("-USDT", "-USDC", "-BTC", "-ETH", "-BGB", "-EUR")
+        if value and not any(value.endswith(q) for q in known_quotes):
+            if value.endswith("USDT") and "-" not in value:
+                value = f"{value.removesuffix('USDT')}-USDT"
+            elif "-" not in value:
+                value = f"{value}-USDT"
+                
         normalized.append(value)
     return normalized
 

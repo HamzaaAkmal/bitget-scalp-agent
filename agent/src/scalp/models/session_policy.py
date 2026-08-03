@@ -47,8 +47,9 @@ class SessionPolicy(BaseModel):
     risk_per_trade_usdt: float = Field(default=0.50, gt=0.0)
     risk_per_trade_percent: float = Field(default=2.5, gt=0.0)
     
-    maximum_concurrent_positions: int = Field(default=1, ge=1, le=3)
+    maximum_concurrent_positions: int = Field(default=3, ge=1, le=5)
     maximum_consecutive_losses: int = Field(default=3, ge=1, le=10)
+    require_human_approval: bool = Field(default=True)
     minimum_setup_quality_score: float = Field(default=80.0, ge=0.0, le=100.0)
     minimum_historical_edge: bool = True
     minimum_risk_reward: float = Field(default=1.5, ge=1.0)

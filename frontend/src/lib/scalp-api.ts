@@ -22,6 +22,7 @@ export interface SessionPolicy {
   risk_per_trade_percent: number;
   maximum_concurrent_positions: number;
   maximum_consecutive_losses: number;
+  require_human_approval?: boolean;
   minimum_setup_quality_score: number;
   minimum_historical_edge: boolean;
   minimum_risk_reward: number;
@@ -174,6 +175,10 @@ export interface ScalpTrade {
   exit_reason?: string;
   net_pnl_usdt: number;
   timeline_events: Array<{ timestamp: string; event: string; details: string }>;
+  coin_icon?: string;
+  coingecko_volume_24h?: number;
+  coingecko_market_cap?: number;
+  coingecko_rank?: number;
 }
 
 async function scalpRequest<T>(path: string, options?: RequestInit): Promise<T> {
@@ -230,9 +235,26 @@ export const scalpApi = {
       status: string;
       session: ScalpSessionData;
       active_trade?: ScalpTrade;
+      active_trades?: ScalpTrade[];
+      pending_proposal?: any;
       recent_trades?: ScalpTrade[];
       latest_cycle?: any;
     }>(`/scalp/sessions/${session_id}`),
+
+  getSessionLogs: (session_id: string, limit: number = 50) =>
+    scalpRequest<{
+      status: string;
+      session_id: string;
+      logs: Array<{
+        timestamp: string;
+        session_id: string;
+        agent: string;
+        level: string;
+        action: string;
+        message: string;
+        details?: any;
+      }>;
+    }>(`/scalp/sessions/${session_id}/logs?limit=${limit}`),
 
   getMarketCandidates: () =>
     scalpRequest<{
@@ -272,13 +294,25 @@ export const scalpApi = {
       method: "POST",
     }),
 
-  closePosition: (trade_id: string) =>
-    scalpRequest<{ status: string; message: string }>(`/scalp/positions/${trade_id}/close`, {
+  pauseSession: (session_id: string) =>
+    scalpRequest<{ status: string; message: string; session: ScalpSessionData }>(`/scalp/sessions/${session_id}/pause`, {
       method: "POST",
     }),
 
-  confirmCopilotTrade: (session_id: string) =>
-    scalpRequest<{ status: string; message: string }>(`/scalp/sessions/${session_id}/confirm`, {
+  resumeSession: (session_id: string) =>
+    scalpRequest<{ status: string; message: string; session: ScalpSessionData }>(`/scalp/sessions/${session_id}/resume`, {
       method: "POST",
     }),
+
+  closePosition: (trade_id: string) =>
+    scalpRequest<{ status: string; message: string; trade?: ScalpTrade }>(`/scalp/positions/${trade_id}/close`, {
+      method: "POST",
+    }),
+
+  confirmCopilotTrade: (session_id: string, proposal_id?: string) =>
+    scalpRequest<{ status: string; message: string; trade?: ScalpTrade }>(`/scalp/sessions/${session_id}/confirm`, {
+      method: "POST",
+      body: JSON.stringify({ proposal_id }),
+    }),
 };
+

@@ -38,6 +38,7 @@ class ScalpSession(BaseModel):
     session_pnl_pct: float = 0.0
     
     active_position_id: str | None = None
+    active_position_ids: list[str] = Field(default_factory=list)
     active_proposal_id: str | None = None
     
     created_at: str

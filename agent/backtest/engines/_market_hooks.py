@@ -80,7 +80,7 @@ def _detect_market(code: str) -> str:
     for pattern, market in _MARKET_PATTERNS:
         if pattern.match(code):
             return market
-    return "a_share"
+    return "crypto"
 
 
 def _is_china_futures(code: str) -> bool:

@@ -4,7 +4,9 @@ import {
   AlertOctagon,
   Bot,
   Brain,
+  CheckCircle2,
   Flame,
+  LineChart,
   Play,
   Radar,
   RefreshCw,
@@ -39,12 +41,24 @@ const PRESET_MISSIONS = [
   },
 ];
 
+function formatLargeNumber(val?: number): string {
+  if (!val || val <= 0) return "N/A";
+  if (val >= 1e9) return `${(val / 1e9).toFixed(2)}B`;
+  if (val >= 1e6) return `${(val / 1e6).toFixed(2)}M`;
+  if (val >= 1e3) return `${(val / 1e3).toFixed(2)}K`;
+  return val.toFixed(2);
+}
+
 export function AIScalpTrader() {
   const [missionInput, setMissionInput] = useState(PRESET_MISSIONS[0].text);
   const [parsing, setParsing] = useState(false);
   const [parsedPolicy, setParsedPolicy] = useState<SessionPolicy | null>(null);
   const [activeSession, setActiveSession] = useState<ScalpSessionData | null>(null);
   const [activeTrade, setActiveTrade] = useState<ScalpTrade | null>(null);
+  const [activeTrades, setActiveTrades] = useState<ScalpTrade[]>([]);
+  const [pendingProposal, setPendingProposal] = useState<any>(null);
+  const [requireApproval, setRequireApproval] = useState(true);
+  const [isClosing, setIsClosing] = useState(false);
   const [recentTrades, setRecentTrades] = useState<ScalpTrade[]>([]);
   const [candidates, setCandidates] = useState<ScalpCandidate[]>([]);
   const [funnelCounts, setFunnelCounts] = useState({
@@ -58,6 +72,8 @@ export function AIScalpTrader() {
   const [regimeInfo, setRegimeInfo] = useState<any>(null);
   const [loadingCandidates, setLoadingCandidates] = useState(true);
   const [emergencyActive, setEmergencyActive] = useState(false);
+  const [agentLogs, setAgentLogs] = useState<Array<{ timestamp: string; session_id?: string; agent: string; level: string; action: string; message: string; details?: any }>>([]);
+  const [selectedAgentFilter, setSelectedAgentFilter] = useState<string>("ALL");
   const [autonomyMode, setAutonomyMode] = useState<"copilot" | "guarded_autopilot" | "full_autonomous">("guarded_autopilot");
 
   // Load active sessions & market candidates on mount
@@ -83,12 +99,38 @@ export function AIScalpTrader() {
       try {
         const res = await scalpApi.getSessionDetail(activeSession.session_id);
         setActiveSession(res.session);
-        if (res.active_trade) {
+        if (res.active_trades) {
+          setActiveTrades(res.active_trades);
+          if (res.active_trades.length > 0) {
+            setActiveTrade(res.active_trades[res.active_trades.length - 1]);
+          } else {
+            setActiveTrade(null);
+          }
+        } else if (res.active_trade) {
           setActiveTrade(res.active_trade);
+          setActiveTrades([res.active_trade]);
+        } else {
+          setActiveTrade(null);
+          setActiveTrades([]);
         }
+
+        if (res.pending_proposal) {
+          setPendingProposal(res.pending_proposal);
+        } else {
+          setPendingProposal(null);
+        }
+
         if (res.recent_trades) {
           setRecentTrades(res.recent_trades);
         }
+
+        // Fetch Realtime Agent Decision Logs
+        try {
+          const logRes = await scalpApi.getSessionLogs(activeSession.session_id);
+          if (logRes.logs) {
+            setAgentLogs(logRes.logs);
+          }
+        } catch (_) {}
       } catch (err) {
         /* best-effort poll */
       }
@@ -99,21 +141,26 @@ export function AIScalpTrader() {
   const loadActiveSession = async () => {
     try {
       const res = await scalpApi.getActiveSessions();
-      let fallbackTrade: ScalpTrade | null = res.latest_trade || null;
       if (res.active_sessions && res.active_sessions.length > 0) {
         const active = res.active_sessions[0];
         setActiveSession(active);
         const detail = await scalpApi.getSessionDetail(active.session_id);
         setActiveSession(detail.session);
-        if (detail.active_trade) {
-          fallbackTrade = detail.active_trade;
+        if (detail.active_trades) {
+          setActiveTrades(detail.active_trades);
+          if (detail.active_trades.length > 0) {
+            setActiveTrade(detail.active_trades[detail.active_trades.length - 1]);
+          }
+        } else if (detail.active_trade) {
+          setActiveTrade(detail.active_trade);
+          setActiveTrades([detail.active_trade]);
+        }
+        if (detail.pending_proposal) {
+          setPendingProposal(detail.pending_proposal);
         }
         if (detail.recent_trades) {
           setRecentTrades(detail.recent_trades);
         }
-      }
-      if (fallbackTrade) {
-        setActiveTrade(fallbackTrade);
       }
     } catch (err) {
       /* best-effort fallback */
@@ -159,8 +206,12 @@ export function AIScalpTrader() {
         setParsedPolicy(policyToUse);
       }
 
-      // Ensure active selected autonomy mode is applied
-      policyToUse = { ...policyToUse, autonomy_mode: autonomyMode };
+      // Apply selected autonomy mode and requireHumanApproval toggle
+      policyToUse = { 
+        ...policyToUse, 
+        autonomy_mode: autonomyMode,
+        require_human_approval: requireApproval,
+      };
 
       const createRes = await scalpApi.createSession(missionInput, policyToUse);
       const startRes = await scalpApi.startSession(createRes.session.session_id);
@@ -196,12 +247,17 @@ export function AIScalpTrader() {
   };
 
   const handleConfirmCopilotTrade = async () => {
-    if (!activeSession) return;
+    if (!activeSession || !pendingProposal) return;
     try {
-      const res = await scalpApi.confirmCopilotTrade(activeSession.session_id);
-      toast.success(res.message);
+      const res = await scalpApi.confirmCopilotTrade(activeSession.session_id, pendingProposal.proposal_id);
+      toast.success("Trade Proposal Approved & Order Submitted to Bitget!");
+      setPendingProposal(null);
+      if (res.trade) {
+        setActiveTrades((prev) => [...prev, res.trade!]);
+        setActiveTrade(res.trade!);
+      }
     } catch (err: any) {
-      toast.error(err.message || "Failed to confirm trade");
+      toast.error(err.message || "Failed to confirm trade proposal");
     }
   };
 
@@ -466,214 +522,349 @@ export function AIScalpTrader() {
         </div>
 
         {/* 3. ALWAYS VISIBLE: Active Positions & Live Trade Desk */}
-        <div className="p-5 rounded-xl bg-card border-2 border-primary/40 space-y-4 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Flame className="h-5 w-5 text-primary animate-bounce" />
-              <h3 className="font-bold text-base">Active Futures Position & Live PnL Desk</h3>
-              {activeTrade && (
-                <span
-                  className={cn(
-                    "px-2.5 py-0.5 text-xs font-bold rounded",
-                    activeTrade.direction === "LONG"
-                      ? "bg-emerald-500/15 text-emerald-500"
-                      : "bg-destructive/15 text-destructive"
-                  )}
-                >
-                  {activeTrade.symbol} {activeTrade.direction} {activeTrade.leverage}x Isolated
-                </span>
-              )}
-            </div>
+        {(() => {
+          const rawPositions = activeTrades.length > 0 ? activeTrades : (activeTrade ? [activeTrade] : []);
+          const deduplicatedMap: Record<string, ScalpTrade> = {};
+          for (const t of rawPositions) {
+            if (t && t.symbol) {
+              deduplicatedMap[t.symbol] = t;
+            }
+          }
+          const openPositionsList = Object.values(deduplicatedMap);
+          const combinedUnrealizedPnl = openPositionsList.reduce((sum, t) => sum + (t.unrealized_pnl_usdt || 0), 0);
+          const liveTotalPnl = (activeSession?.session_pnl_usdt || 0) + combinedUnrealizedPnl;
 
-            {activeTrade && (
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">Trade ID: {activeTrade.trade_id}</span>
-                <button
-                  onClick={async () => {
-                    await scalpApi.closePosition(activeTrade.trade_id);
-                    toast.info("Manual Close Requested");
-                  }}
-                  className="px-3 py-1 rounded bg-destructive text-destructive-foreground text-xs font-bold hover:bg-destructive/90"
-                >
-                  Close Position
-                </button>
+          return (
+            <>
+              <div className="p-5 rounded-xl bg-card border-2 border-primary/40 space-y-4 shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Flame className="h-5 w-5 text-primary animate-bounce" />
+                    <h3 className="font-bold text-base">
+                      Active Futures Positions & Live PnL Desk ({openPositionsList.length} Active)
+                    </h3>
+                  </div>
+
+                  {/* Human Approval Toggle Switch */}
+                  <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg bg-muted/60 border border-border/60 text-xs shrink-0">
+                    <ShieldAlert className={cn("h-4 w-4", requireApproval ? "text-primary animate-pulse" : "text-muted-foreground")} />
+                    <span className="font-semibold text-foreground">Require Human Approval</span>
+                    <button
+                      type="button"
+                      onClick={() => setRequireApproval(!requireApproval)}
+                      className={cn(
+                        "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
+                        requireApproval ? "bg-primary" : "bg-muted-foreground/30"
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-background shadow-lg ring-0 transition duration-200 ease-in-out",
+                          requireApproval ? "translate-x-4" : "translate-x-0"
+                        )}
+                      />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Pending Proposal Approval Modal Alert */}
+                {pendingProposal && (
+                  <div className="p-4 rounded-xl bg-primary/10 border-2 border-primary/60 space-y-3 shadow-md animate-pulse">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <ShieldAlert className="h-5 w-5 text-primary" />
+                        <span className="font-bold text-sm text-foreground">
+                          🚨 TRADE PROPOSAL APPROVAL REQUIRED (Human Approval Gate ON)
+                        </span>
+                      </div>
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded bg-primary/20 text-primary">
+                        Setup Quality: {pendingProposal.setup_quality_score || 85}%
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs bg-card/80 p-3 rounded-lg border border-border/50">
+                      <div>
+                        <div className="text-[10px] text-muted-foreground">Market & Setup</div>
+                        <div className="font-bold text-sm text-foreground">
+                          {pendingProposal.symbol} {pendingProposal.direction} {pendingProposal.leverage}x
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-muted-foreground">Entry / Stop / Target</div>
+                        <div className="font-semibold text-xs">
+                          ${pendingProposal.entry_price} (SL: ${pendingProposal.stop_loss} | TP: ${pendingProposal.take_profit_1})
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-muted-foreground">Position Margin</div>
+                        <div className="font-semibold text-xs">${pendingProposal.margin_required_usdt} USDT</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-muted-foreground">Expected Net Edge</div>
+                        <div className="font-bold text-xs text-emerald-500">
+                          {pendingProposal.why_this_trade?.expected_net_edge || "+0.25 USDT"}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-3 pt-1">
+                      <button
+                        onClick={() => setPendingProposal(null)}
+                        className="px-4 py-1.5 rounded-lg border border-border text-xs font-bold hover:bg-muted"
+                      >
+                        Reject Trade
+                      </button>
+                      <button
+                        onClick={handleConfirmCopilotTrade}
+                        className="px-5 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-bold shadow hover:opacity-90 transition-all flex items-center gap-1.5"
+                      >
+                        <CheckCircle2 className="h-4 w-4" />
+                        <span>Approve & Place Trade</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Open Position Cards List */}
+                {openPositionsList.length > 0 ? (
+                  <div className="space-y-6">
+                    {openPositionsList.map((trade, idx) => (
+                      <div key={trade.trade_id || idx} className="p-5 rounded-xl bg-card border border-border/80 space-y-4 shadow-sm">
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <div className="flex items-center gap-2.5">
+                            {trade.coin_icon ? (
+                              <img
+                                src={trade.coin_icon}
+                                alt={trade.symbol}
+                                className="h-6 w-6 rounded-full object-cover border border-border/50 shrink-0"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).src = "https://assets.coingecko.com/coins/images/1/large/bitcoin.png";
+                                }}
+                              />
+                            ) : (
+                              <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center font-bold text-[10px] text-primary shrink-0">
+                                {trade.symbol.slice(0, 3)}
+                              </div>
+                            )}
+                            <span
+                              className={cn(
+                                "px-2.5 py-0.5 text-xs font-bold rounded",
+                                trade.direction === "LONG"
+                                  ? "bg-emerald-500/15 text-emerald-500"
+                                  : "bg-destructive/15 text-destructive"
+                              )}
+                            >
+                              {trade.symbol} {trade.direction} {trade.leverage}x Isolated
+                            </span>
+                            <span className="text-xs text-muted-foreground font-mono">Trade ID: {trade.trade_id}</span>
+                          </div>
+
+                          <button
+                            disabled={isClosing}
+                            onClick={async () => {
+                              setIsClosing(true);
+                              try {
+                                const res = await scalpApi.closePosition(trade.trade_id);
+                                if (res.status === "ok") {
+                                  toast.success(`Position ${trade.symbol} closed successfully on Bitget`);
+                                  setActiveTrades((prev) => prev.filter((t) => t.trade_id !== trade.trade_id));
+                                } else {
+                                  toast.error(res.message || "Failed to close position");
+                                }
+                              } catch (err: any) {
+                                toast.error(err.message || "Error closing position");
+                              } finally {
+                                setIsClosing(false);
+                              }
+                            }}
+                            className="px-3 py-1 rounded-lg bg-destructive text-destructive-foreground text-xs font-bold hover:bg-destructive/90 disabled:opacity-50 transition-all shadow-xs"
+                          >
+                            {isClosing ? "Closing..." : "Close Position"}
+                          </button>
+                        </div>
+
+                        {/* CoinGecko Market Metrics Pill Bar */}
+                        <div className="flex items-center gap-3 text-xs bg-muted/40 p-2.5 rounded-lg border border-border/50 text-muted-foreground flex-wrap">
+                          <span className="font-semibold text-foreground flex items-center gap-1 shrink-0">
+                            🦎 CoinGecko Data:
+                          </span>
+                          <span>
+                            24h Vol: <strong className="text-foreground font-semibold">${formatLargeNumber(trade.coingecko_volume_24h)}</strong>
+                          </span>
+                          <span>•</span>
+                          <span>
+                            Market Cap: <strong className="text-foreground font-semibold">${formatLargeNumber(trade.coingecko_market_cap)}</strong>{" "}
+                            {trade.coingecko_rank ? <span className="text-primary font-bold">(#{trade.coingecko_rank})</span> : ""}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                          <div className="p-3 rounded bg-muted/40 border border-border/50">
+                            <div className="text-[10px] text-muted-foreground">Entry Price</div>
+                            <div className="font-semibold text-sm">${trade.entry_price?.toLocaleString()}</div>
+                          </div>
+                          <div className="p-3 rounded bg-muted/40 border border-border/50">
+                            <div className="text-[10px] text-muted-foreground">Current Mark Price</div>
+                            <div className="font-semibold text-sm">${trade.current_price?.toLocaleString()}</div>
+                          </div>
+                          <div className="p-3 rounded bg-muted/40 border border-border/50">
+                            <div className="text-[10px] text-muted-foreground">Unrealized PnL ($ & ROE %)</div>
+                            <div
+                              className={cn(
+                                "font-bold text-base",
+                                (trade.unrealized_pnl_usdt || 0) >= 0 ? "text-emerald-500" : "text-destructive"
+                              )}
+                            >
+                              {(trade.unrealized_pnl_usdt || 0) >= 0 ? "+" : ""}
+                              {(trade.unrealized_pnl_usdt || 0).toFixed(4)} USDT (
+                              {(trade.unrealized_pnl_pct || 0).toFixed(2)}%)
+                            </div>
+                          </div>
+                          <div className="p-3 rounded bg-muted/40 border border-border/50">
+                            <div className="text-[10px] text-muted-foreground">Native Take-Profit / Stop-Loss</div>
+                            <div className="font-semibold text-sm">
+                              <span className="text-emerald-500">${trade.take_profit_price}</span> /{" "}
+                              <span className="text-destructive">${trade.stop_loss_price}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {trade.proposal?.why_this_trade && (
+                          <div className="p-3 rounded bg-muted/30 border border-border/40 text-xs space-y-1">
+                            <div className="font-semibold text-foreground flex items-center justify-between">
+                              <span>Strategy Rationale & Expected Edge</span>
+                              <span className="text-emerald-500 font-bold">
+                                {trade.proposal.why_this_trade.expected_net_edge}
+                              </span>
+                            </div>
+                            <p className="text-muted-foreground text-[11px]">
+                              {trade.proposal.strategy_name} ({trade.proposal.market_regime}) —{" "}
+                              {trade.proposal.why_this_trade.market_selection}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* 15-Minute TradingView Live Chart Embed */}
+                        <div className="pt-2 border-t border-border/50 space-y-2">
+                          <div className="flex items-center justify-between text-xs font-semibold text-foreground">
+                            <span className="flex items-center gap-1.5">
+                              <LineChart className="h-4 w-4 text-primary" />
+                              15-Minute Candlestick Chart (TradingView Live Feed)
+                            </span>
+                            <span className="text-[10px] text-muted-foreground font-mono">TF: 15m | Bitget Futures</span>
+                          </div>
+                          <div className="h-[280px] w-full rounded-xl border border-border/70 overflow-hidden shadow-inner bg-zinc-950">
+                            <iframe
+                              title={`TradingView 15m Chart for ${trade.symbol}`}
+                              src={`https://s.tradingview.com/widgetembed/?frameElementId=tv_${trade.symbol}&symbol=BITGET%3A${trade.symbol}&interval=15&hidesidetoolbar=1&hidedetachedtoolbar=1&symboledit=0&saveimage=0&toolbarbg=18181b&theme=dark&style=1&timezone=Etc%2FUTC&locale=en`}
+                              className="w-full h-full border-0"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : activeSession && activeSession.status === "ACTIVE" ? (
+                  <div className="p-4 rounded bg-muted/30 border border-border/40 flex flex-col gap-2 text-xs">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <RefreshCw className="h-4 w-4 text-primary animate-spin" />
+                        <span className="font-semibold text-foreground">
+                          Session is ACTIVE — Autonomous Scanner evaluating Bitget futures candidates...
+                        </span>
+                      </div>
+                      <span className="text-muted-foreground text-[11px]">Scanning 6 liquid candidates</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-4 rounded bg-muted/30 border border-border/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                    <div>
+                      <span className="font-semibold text-foreground">No Active Session Running</span>
+                      <p className="text-muted-foreground text-[11px] mt-0.5">
+                        Click "Start Session" above to launch autonomous multi-agent scalp trading on Bitget.
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleStartSession}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground font-bold shadow hover:opacity-90 transition-all shrink-0"
+                    >
+                      <Play className="h-3.5 w-3.5 fill-current" />
+                      <span>Start Autonomous Session</span>
+                    </button>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
 
-          {activeTrade ? (
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                <div className="p-3 rounded bg-muted/40 border border-border/50">
-                  <div className="text-[10px] text-muted-foreground">Entry Price</div>
-                  <div className="font-semibold text-sm">${activeTrade.entry_price?.toLocaleString()}</div>
-                </div>
-                <div className="p-3 rounded bg-muted/40 border border-border/50">
-                  <div className="text-[10px] text-muted-foreground">Current Mark Price</div>
-                  <div className="font-semibold text-sm">${activeTrade.current_price?.toLocaleString()}</div>
-                </div>
-                <div className="p-3 rounded bg-muted/40 border border-border/50">
-                  <div className="text-[10px] text-muted-foreground">Unrealized PnL ($ & ROE %)</div>
-                  <div
-                    className={cn(
-                      "font-bold text-base",
-                      (activeTrade.unrealized_pnl_usdt || 0) >= 0 ? "text-emerald-500" : "text-destructive"
+              {/* 4. Session Target & Live Performance */}
+              <div className="p-5 rounded-xl bg-card border border-border/80 space-y-4 shadow-sm">
+                <div className="flex items-center justify-between text-xs font-semibold">
+                  <div className="flex items-center gap-3">
+                    <span>Session Target & Live Performance</span>
+                    {activeSession && activeSession.stats && (
+                      <span className="text-[11px] font-normal text-muted-foreground">
+                        Trades: {activeSession.stats.total_trades} | Win Rate: {activeSession.stats.win_rate_pct}%
+                      </span>
                     )}
-                  >
-                    {(activeTrade.unrealized_pnl_usdt || 0) >= 0 ? "+" : ""}
-                    {(activeTrade.unrealized_pnl_usdt || 0).toFixed(4)} USDT (
-                    {(activeTrade.unrealized_pnl_pct || 0).toFixed(2)}%)
                   </div>
-                </div>
-                <div className="p-3 rounded bg-muted/40 border border-border/50">
-                  <div className="text-[10px] text-muted-foreground">Native Take-Profit / Stop-Loss</div>
-                  <div className="font-semibold text-sm">
-                    <span className="text-emerald-500">${activeTrade.take_profit_price}</span> /{" "}
-                    <span className="text-destructive">${activeTrade.stop_loss_price}</span>
-                  </div>
-                </div>
-              </div>
-
-              {activeTrade.proposal?.why_this_trade && (
-                <div className="p-3 rounded bg-muted/30 border border-border/40 text-xs space-y-1">
-                  <div className="font-semibold text-foreground flex items-center justify-between">
-                    <span>Strategy Rationale & Expected Edge</span>
-                    <span className="text-emerald-500 font-bold">
-                      {activeTrade.proposal.why_this_trade.expected_net_edge}
-                    </span>
-                  </div>
-                  <p className="text-muted-foreground text-[11px]">
-                    {activeTrade.proposal.strategy_name} ({activeTrade.proposal.market_regime}) —{" "}
-                    {activeTrade.proposal.why_this_trade.market_selection}
-                  </p>
-                </div>
-              )}
-            </div>
-          ) : activeSession && activeSession.status === "ACTIVE" ? (
-            <div className="p-4 rounded bg-muted/30 border border-border/40 flex flex-col gap-2 text-xs">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <RefreshCw className="h-4 w-4 text-primary animate-spin" />
-                  <span className="font-semibold text-foreground">
-                    Session is ACTIVE — Autonomous Scanner evaluating Bitget futures candidates...
+                  <span className="text-muted-foreground">
+                    Session ID: {activeSession?.session_id || "ses_idle"}
                   </span>
                 </div>
-                <span className="text-muted-foreground text-[11px]">Scanning 6 liquid candidates</span>
-              </div>
-              {activeSession.latest_cycle && (
-                <div className="text-[11px] text-muted-foreground pl-6 mt-1 border-l-2 border-primary/20 ml-1">
-                  <span className="font-semibold text-foreground">{activeSession.latest_cycle.symbol}:</span>{' '}
-                  {activeSession.latest_cycle.status === 'vetoed' ? (
-                    <span className="text-destructive">{activeSession.latest_cycle.reason}</span>
-                  ) : activeSession.latest_cycle.status === 'no_trade' ? (
-                    <span>{activeSession.latest_cycle.reason}</span>
-                  ) : activeSession.latest_cycle.status === 'risk_rejected' ? (
-                    <span className="text-orange-500">Risk check failed: {activeSession.latest_cycle.reason}</span>
-                  ) : activeSession.latest_cycle.status === 'error' ? (
-                    <span className="text-destructive font-bold">Execution Error: {activeSession.latest_cycle.message || "Failed to execute"}</span>
-                  ) : (
-                    <span>{activeSession.latest_cycle.status}</span>
-                  )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">
+                        Target Profit (+{activeSession?.policy?.target_profit || 5} USDT)
+                      </span>
+                      <span className="font-semibold text-emerald-500">
+                        {liveTotalPnl >= 0 ? `+${liveTotalPnl.toFixed(2)}` : "0.00"} USDT
+                      </span>
+                    </div>
+                    <div className="h-2 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className="h-full bg-emerald-500 transition-all duration-300"
+                        style={{
+                          width: `${Math.min(
+                            100,
+                            Math.max(0, (liveTotalPnl / (activeSession?.policy?.target_profit || 5)) * 100)
+                          )}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">
+                        Max Loss Limit (-{activeSession?.policy?.maximum_session_loss || 2} USDT)
+                      </span>
+                      <span className="font-semibold text-destructive">
+                        {liveTotalPnl < 0 ? `${liveTotalPnl.toFixed(2)}` : "0.00"} USDT
+                      </span>
+                    </div>
+                    <div className="h-2 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className="h-full bg-destructive transition-all duration-300"
+                        style={{
+                          width: `${Math.min(
+                            100,
+                            Math.max(
+                              0,
+                              (Math.abs(Math.min(0, liveTotalPnl)) /
+                                (activeSession?.policy?.maximum_session_loss || 2)) *
+                                100
+                            )
+                          )}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
                 </div>
-              )}
-            </div>
-          ) : (
-            <div className="p-4 rounded bg-muted/30 border border-border/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
-              <div>
-                <span className="font-semibold text-foreground">No Active Session Running</span>
-                <p className="text-muted-foreground text-[11px] mt-0.5">
-                  Click "Start Session" above to launch autonomous multi-agent scalp trading on Bitget.
-                </p>
               </div>
-              <button
-                onClick={handleStartSession}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground font-bold shadow hover:opacity-90 transition-all shrink-0"
-              >
-                <Play className="h-3.5 w-3.5 fill-current" />
-                <span>Start Autonomous Session</span>
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* 4. Session Target & Realized Performance */}
-        <div className="p-5 rounded-xl bg-card border border-border/80 space-y-4 shadow-sm">
-          <div className="flex items-center justify-between text-xs font-semibold">
-            <div className="flex items-center gap-3">
-              <span>Session Target & Realized Performance</span>
-              {activeSession && activeSession.stats && (
-                <span className="text-[11px] font-normal text-muted-foreground">
-                  Trades: {activeSession.stats.total_trades} | Win Rate: {activeSession.stats.win_rate_pct}%
-                </span>
-              )}
-            </div>
-            <span className="text-muted-foreground">
-              Session ID: {activeSession?.session_id || "ses_idle"}
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">
-                  Target Profit (+{activeSession?.policy?.target_profit || 5} USDT)
-                </span>
-                <span className="font-semibold text-emerald-500">
-                  {(activeSession?.session_pnl_usdt || 0) >= 0
-                    ? `+${(activeSession?.session_pnl_usdt || 0).toFixed(2)}`
-                    : "0.00"}{" "}
-                  USDT
-                </span>
-              </div>
-              <div className="h-2 rounded-full bg-muted overflow-hidden">
-                <div
-                  className="h-full bg-emerald-500 transition-all duration-300"
-                  style={{
-                    width: `${Math.min(
-                      100,
-                      Math.max(
-                        0,
-                        ((activeSession?.session_pnl_usdt || 0) /
-                          (activeSession?.policy?.target_profit || 5)) *
-                          100
-                      )
-                    )}%`,
-                  }}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">
-                  Max Loss Limit (-{activeSession?.policy?.maximum_session_loss || 2} USDT)
-                </span>
-                <span className="font-semibold text-destructive">
-                  {(activeSession?.session_pnl_usdt || 0) < 0
-                    ? `${(activeSession?.session_pnl_usdt || 0).toFixed(2)}`
-                    : "0.00"}{" "}
-                  USDT
-                </span>
-              </div>
-              <div className="h-2 rounded-full bg-muted overflow-hidden">
-                <div
-                  className="h-full bg-destructive transition-all duration-300"
-                  style={{
-                    width: `${Math.min(
-                      100,
-                      Math.max(
-                        0,
-                        (Math.abs(Math.min(0, activeSession?.session_pnl_usdt || 0)) /
-                          (activeSession?.policy?.maximum_session_loss || 2)) *
-                          100
-                      )
-                    )}%`,
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
+            </>
+          );
+        })()}
 
         {/* 5. Completed Trades History (if available) */}
         {recentTrades && recentTrades.length > 0 && (
@@ -726,6 +917,104 @@ export function AIScalpTrader() {
             </div>
           </div>
         )}
+
+        {/* 5. Realtime Multi-Agent Execution & Decision Stream */}
+        <div className="p-5 rounded-xl bg-card border-2 border-primary/30 space-y-4 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <Bot className="h-5 w-5 text-primary" />
+                <h3 className="font-bold text-base">🤖 Multi-Agent Realtime Execution & Decision Stream</h3>
+                <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-emerald-500/15 text-emerald-500 animate-pulse">
+                  LIVE ENGINE STREAM
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Real-time execution trace of all 4 autonomous agents evaluating indicators, risk edge, news vetoes & execution gates.
+              </p>
+            </div>
+
+            {/* Agent Filter Tabs */}
+            <div className="flex items-center gap-1.5 bg-muted/60 p-1 rounded-lg text-xs overflow-x-auto shrink-0">
+              {["ALL", "Scanner", "Strategy", "Risk", "Execution"].map((filter) => (
+                <button
+                  key={filter}
+                  onClick={() => setSelectedAgentFilter(filter)}
+                  className={cn(
+                    "px-3 py-1 rounded-md font-semibold transition-all shrink-0",
+                    selectedAgentFilter === filter
+                      ? "bg-background text-foreground shadow-xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {filter}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="p-4 rounded-xl bg-zinc-950 border border-zinc-800/80 font-mono text-xs space-y-2.5 max-h-[380px] overflow-y-auto shadow-inner text-zinc-300">
+            {agentLogs && agentLogs.length > 0 ? (
+              agentLogs
+                .filter((log) => {
+                  if (selectedAgentFilter === "ALL") return true;
+                  if (selectedAgentFilter === "Scanner") return log.agent.includes("Scanner");
+                  if (selectedAgentFilter === "Strategy") return log.agent.includes("Strategy");
+                  if (selectedAgentFilter === "Risk") return log.agent.includes("Risk");
+                  if (selectedAgentFilter === "Execution") return log.agent.includes("Execution");
+                  return true;
+                })
+                .map((log, idx) => (
+                  <div
+                    key={idx}
+                    className="p-2.5 rounded bg-zinc-900/80 border border-zinc-800/60 space-y-1.5 hover:border-zinc-700/60 transition-all"
+                  >
+                    <div className="flex items-center justify-between flex-wrap gap-2 text-[11px]">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-zinc-500 font-bold">[{log.timestamp}]</span>
+                        <span
+                          className={cn(
+                            "px-2 py-0.5 rounded text-[10px] font-bold border",
+                            log.agent.includes("Scanner")
+                              ? "bg-blue-500/15 text-blue-400 border-blue-500/30"
+                              : log.agent.includes("Strategy")
+                              ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+                              : log.agent.includes("Risk")
+                              ? "bg-amber-500/15 text-amber-400 border-amber-500/30"
+                              : "bg-purple-500/15 text-purple-400 border-purple-500/30"
+                          )}
+                        >
+                          {log.agent}
+                        </span>
+                        <span className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 text-[10px] font-bold">
+                          {log.action}
+                        </span>
+                      </div>
+                      <span className="text-zinc-500 text-[10px] font-mono">{log.session_id || "ses_live"}</span>
+                    </div>
+
+                    <p className="text-zinc-200 font-medium text-xs pl-1 leading-relaxed">{log.message}</p>
+
+                    {log.details && Object.keys(log.details).length > 0 && (
+                      <details className="text-[10px] text-zinc-400 pl-1 pt-1">
+                        <summary className="cursor-pointer hover:text-zinc-200 font-semibold select-none">
+                          🔍 View Agent Decision Data & Output JSON
+                        </summary>
+                        <pre className="mt-1.5 p-2 rounded bg-zinc-950 border border-zinc-800 overflow-x-auto text-[10px] text-emerald-400 leading-tight">
+                          {JSON.stringify(log.details, null, 2)}
+                        </pre>
+                      </details>
+                    )}
+                  </div>
+                ))
+            ) : (
+              <div className="p-6 text-center text-zinc-500 text-xs font-mono space-y-1">
+                <RefreshCw className="h-4 w-4 animate-spin mx-auto text-zinc-600 mb-2" />
+                <p>Waiting for agent decisions... Multi-agent execution loop runs continuously every cycle.</p>
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* 6. Quantitative Opportunity Scanner */}
         <div className="p-5 rounded-xl bg-card border border-border/80 space-y-4 shadow-sm">
