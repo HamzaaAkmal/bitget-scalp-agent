@@ -264,66 +264,68 @@ export function AIScalpTrader() {
   return (
     <div className="min-h-screen bg-background text-foreground p-4 md:p-6 space-y-6 max-w-7xl mx-auto">
       {/* 1. Header Bar */}
-      <header className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-4 rounded-xl bg-card border border-border/80 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-lg bg-primary/10 text-primary">
-            <Radar className="h-6 w-6 animate-pulse" />
+      <header className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-5 rounded-2xl bg-card border border-border/80 shadow-md">
+        <div className="flex items-center gap-3.5">
+          <div className="p-3 rounded-xl bg-primary/10 text-primary border border-primary/20 shadow-inner">
+            <Radar className="h-7 w-7 animate-pulse" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold tracking-tight">AI Scalp Trader</h1>
-              <span className="px-2 py-0.5 text-[11px] font-semibold rounded-full bg-primary/15 text-primary">
-                Vibe Agents v1.0
+              <h1 className="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-foreground via-foreground to-primary bg-clip-text text-transparent">
+                AI Scalp Trader
+              </h1>
+              <span className="px-2.5 py-0.5 text-[11px] font-bold rounded-full bg-primary/15 text-primary border border-primary/30">
+                Vibe Autonomous Core v2.0
               </span>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Production-Grade Multi-Agent Autonomous Futures Trading Desk
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Event-Driven Low-Latency Futures Scalping Engine • Direct Bitget Exchange Reconciliation
             </p>
           </div>
         </div>
 
         {/* Live Status Indicators & Emergency Stop */}
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted text-xs font-medium border border-border/60">
-            <Bot className="h-3.5 w-3.5 text-primary" />
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-muted/80 text-xs font-semibold border border-border/60 shadow-xs">
+            <Bot className="h-4 w-4 text-primary" />
             <span className="capitalize">{autonomyMode.replace("_", " ")}</span>
           </div>
 
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-500 text-xs font-medium border border-emerald-500/20">
-            <ShieldCheck className="h-3.5 w-3.5" />
-            <span>Bitget Production (USDT-Futures)</span>
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-400 text-xs font-semibold border border-emerald-500/20 shadow-xs">
+            <ShieldCheck className="h-4 w-4 text-emerald-500" />
+            <span>Bitget Futures Account</span>
           </div>
 
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-info/10 text-info text-xs font-medium border border-info/20">
-            <Activity className="h-3.5 w-3.5" />
-            <span>Regime: {regimeInfo?.primary_regime || "STRONG_DOWNTREND"}</span>
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-info/10 text-info text-xs font-semibold border border-info/20 shadow-xs">
+            <Activity className="h-4 w-4 text-info" />
+            <span>Regime: {regimeInfo?.primary_regime || "TRENDING"}</span>
           </div>
 
           <div
             className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border",
+              "flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all shadow-xs",
               activeSession?.status === "ACTIVE"
-                ? "bg-emerald-500/15 text-emerald-500 border-emerald-500/30"
+                ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/40"
                 : "bg-muted text-muted-foreground border-border"
             )}
           >
-            <span className="relative flex h-2 w-2">
+            <span className="relative flex h-2.5 w-2.5">
               {activeSession?.status === "ACTIVE" && (
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               )}
               <span
                 className={cn(
-                  "relative inline-flex rounded-full h-2 w-2",
+                  "relative inline-flex rounded-full h-2.5 w-2.5",
                   activeSession?.status === "ACTIVE" ? "bg-emerald-500" : "bg-muted-foreground"
                 )}
               ></span>
             </span>
-            <span>{activeSession?.status || "STOPPED"}</span>
+            <span>{activeSession?.status || "STANDBY"}</span>
           </div>
 
           <button
             onClick={handleEmergencyStop}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-destructive hover:bg-destructive/90 text-destructive-foreground text-xs font-bold transition-all shadow-md active:scale-95"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-destructive hover:bg-destructive/90 text-destructive-foreground text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer"
           >
             <AlertOctagon className="h-4 w-4" />
             <span>EMERGENCY STOP</span>
@@ -333,12 +335,12 @@ export function AIScalpTrader() {
 
       {/* Emergency Stop Alert Banner if Active */}
       {emergencyActive && (
-        <div className="p-4 rounded-xl bg-destructive/15 border-2 border-destructive text-destructive flex items-center justify-between">
+        <div className="p-4 rounded-xl bg-destructive/15 border-2 border-destructive text-destructive flex items-center justify-between shadow-lg">
           <div className="flex items-center gap-3">
             <AlertOctagon className="h-6 w-6 shrink-0" />
             <div>
               <h3 className="font-bold text-sm">GLOBAL EMERGENCY STOP IS ACTIVE</h3>
-              <p className="text-xs">All autonomous execution halted. All pending Bitget orders cancelled.</p>
+              <p className="text-xs opacity-90">All autonomous execution halted. All pending Bitget orders cancelled.</p>
             </div>
           </div>
           <button
@@ -347,7 +349,7 @@ export function AIScalpTrader() {
               setEmergencyActive(false);
               toast.info("Emergency Stop Reset.");
             }}
-            className="px-3 py-1.5 rounded-md bg-background text-xs font-semibold hover:bg-muted border border-border"
+            className="px-3.5 py-1.5 rounded-lg bg-background text-xs font-bold hover:bg-muted border border-border transition-all shadow-xs"
           >
             Reset Emergency Stop
           </button>
@@ -356,7 +358,7 @@ export function AIScalpTrader() {
 
       {/* Copilot Trade Proposal Approval Banner */}
       {activeSession && activeSession.active_proposal_id && (
-        <div className="p-4 rounded-xl bg-primary/15 border-2 border-primary text-foreground flex items-center justify-between shadow-md">
+        <div className="p-4 rounded-xl bg-primary/15 border-2 border-primary text-foreground flex items-center justify-between shadow-lg backdrop-blur-md">
           <div className="flex items-center gap-3">
             <Bot className="h-6 w-6 text-primary shrink-0 animate-bounce" />
             <div>
@@ -368,23 +370,28 @@ export function AIScalpTrader() {
           </div>
           <button
             onClick={handleConfirmCopilotTrade}
-            className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-xs font-bold shadow hover:opacity-90 transition-all"
+            className="px-5 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-bold shadow-md hover:opacity-90 transition-all flex items-center gap-1.5"
           >
-            Approve & Execute Trade
+            <CheckCircle2 className="h-4 w-4" />
+            <span>Approve & Execute Trade</span>
           </button>
         </div>
       )}
 
-      {/* Main Streamlined Grid */}
+      {/* Main Grid */}
       <div className="space-y-6">
-        {/* 2. Natural Language Mission Builder */}
-        <div className="p-5 rounded-xl bg-card border border-border/80 space-y-4 shadow-sm">
+        {/* 2. Mission Control Policy Builder */}
+        <div className="p-6 rounded-2xl bg-card border border-border/80 space-y-5 shadow-sm">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-primary" />
-              <h2 className="font-semibold text-base">Natural-Language Trading Mission</h2>
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-lg bg-primary/15 text-primary">
+                <Sparkles className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="font-bold text-base">Natural-Language Scalp Mission Builder</h2>
+                <p className="text-xs text-muted-foreground">Define risk budgets, profit targets, leverage and pair filters in natural text</p>
+              </div>
             </div>
-            <span className="text-xs text-muted-foreground">Describe your strategy policy in plain English</span>
           </div>
 
           {/* Presets */}
@@ -396,7 +403,7 @@ export function AIScalpTrader() {
                   setMissionInput(preset.text);
                   setParsedPolicy(null);
                 }}
-                className="px-2.5 py-1 text-[11px] rounded-md bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors border border-border/40"
+                className="px-3 py-1.5 text-xs rounded-xl bg-muted/70 hover:bg-primary/15 hover:text-primary text-muted-foreground font-semibold transition-all border border-border/50 shadow-xs"
               >
                 {preset.label}
               </button>
@@ -409,29 +416,29 @@ export function AIScalpTrader() {
             onChange={(e) => setMissionInput(e.target.value)}
             rows={3}
             placeholder="e.g. Allocate 20 USDT for 3 hours. Scan BTC, ETH, SOL futures..."
-            className="w-full p-3 rounded-lg bg-background text-sm border border-border focus:ring-2 focus:ring-primary/40 outline-none resize-none"
+            className="w-full p-3.5 rounded-xl bg-background text-sm border border-border focus:ring-2 focus:ring-primary/40 outline-none resize-none shadow-inner"
           />
 
           {/* Action Bar */}
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2 bg-muted/60 p-1 rounded-lg text-xs font-medium border border-border/40">
+            <div className="flex items-center gap-1.5 bg-muted/60 p-1 rounded-xl text-xs font-semibold border border-border/40">
               <button
                 onClick={() => setAutonomyMode("copilot")}
                 className={cn(
-                  "px-3 py-1.5 rounded-md transition-colors",
+                  "px-3 py-1.5 rounded-lg transition-all",
                   autonomyMode === "copilot"
-                    ? "bg-card text-foreground font-semibold shadow-sm"
+                    ? "bg-card text-foreground font-bold shadow-xs"
                     : "text-muted-foreground hover:text-foreground"
                 )}
               >
-                1. Copilot
+                1. Copilot Mode
               </button>
               <button
                 onClick={() => setAutonomyMode("guarded_autopilot")}
                 className={cn(
-                  "px-3 py-1.5 rounded-md transition-colors",
+                  "px-3 py-1.5 rounded-lg transition-all",
                   autonomyMode === "guarded_autopilot"
-                    ? "bg-card text-foreground font-semibold shadow-sm"
+                    ? "bg-card text-foreground font-bold shadow-xs"
                     : "text-muted-foreground hover:text-foreground"
                 )}
               >
@@ -439,31 +446,31 @@ export function AIScalpTrader() {
               </button>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2.5">
               <button
                 onClick={handleParseMission}
                 disabled={parsing}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-muted hover:bg-muted/80 text-foreground text-xs font-semibold transition-colors border border-border"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-muted hover:bg-muted/80 text-foreground text-xs font-semibold transition-all border border-border shadow-xs"
               >
-                {parsing ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Brain className="h-3.5 w-3.5" />}
+                {parsing ? <RefreshCw className="h-4 w-4 animate-spin text-primary" /> : <Brain className="h-4 w-4 text-primary" />}
                 <span>Parse Policy</span>
               </button>
 
               {!activeSession || activeSession.status !== "ACTIVE" ? (
                 <button
                   onClick={handleStartSession}
-                  className="flex items-center gap-1.5 px-5 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-bold transition-all shadow-md hover:opacity-90 active:scale-95"
+                  className="flex items-center gap-2 px-6 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold transition-all shadow-md hover:opacity-90 active:scale-95 cursor-pointer"
                 >
-                  <Play className="h-3.5 w-3.5 fill-current" />
-                  <span>Start Session</span>
+                  <Play className="h-4 w-4 fill-current" />
+                  <span>Start Scalp Engine</span>
                 </button>
               ) : (
                 <button
                   onClick={handleStopSession}
-                  className="flex items-center gap-1.5 px-5 py-2 rounded-lg bg-destructive text-destructive-foreground text-xs font-bold transition-all shadow-md hover:opacity-90"
+                  className="flex items-center gap-2 px-6 py-2 rounded-xl bg-destructive text-destructive-foreground text-xs font-bold transition-all shadow-md hover:opacity-90 cursor-pointer"
                 >
-                  <Square className="h-3.5 w-3.5 fill-current" />
-                  <span>Stop Session</span>
+                  <Square className="h-4 w-4 fill-current" />
+                  <span>Stop Engine</span>
                 </button>
               )}
             </div>
@@ -471,28 +478,28 @@ export function AIScalpTrader() {
 
           {/* Parsed Policy Preview */}
           {parsedPolicy && (
-            <div className="p-4 rounded-lg bg-muted/40 border border-border/80 space-y-3 mt-3">
+            <div className="p-4 rounded-xl bg-muted/40 border border-border/80 space-y-3 mt-2">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-foreground">Active Session Policy Parameters</span>
-                <span className="text-[11px] text-muted-foreground">Enforced Deterministic Rules</span>
+                <span className="text-xs font-bold text-foreground">Enforced Strategy Policy Parameters</span>
+                <span className="text-[11px] text-muted-foreground font-mono">Verified Deterministic Risk Rules</span>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                <div className="p-2 rounded bg-card border border-border/50">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+                <div className="p-2.5 rounded-lg bg-card border border-border/60 shadow-xs">
                   <div className="text-[10px] text-muted-foreground">Allocated Capital</div>
-                  <div className="font-semibold">{parsedPolicy.allocated_capital} USDT</div>
+                  <div className="font-bold text-sm">${parsedPolicy.allocated_capital} USDT</div>
                 </div>
-                <div className="p-2 rounded bg-card border border-border/50">
+                <div className="p-2.5 rounded-lg bg-card border border-border/60 shadow-xs">
                   <div className="text-[10px] text-muted-foreground">Target Profit</div>
-                  <div className="font-semibold text-emerald-500">+{parsedPolicy.target_profit} USDT</div>
+                  <div className="font-bold text-sm text-emerald-500">+{parsedPolicy.target_profit} USDT</div>
                 </div>
-                <div className="p-2 rounded bg-card border border-border/50">
+                <div className="p-2.5 rounded-lg bg-card border border-border/60 shadow-xs">
                   <div className="text-[10px] text-muted-foreground">Max Session Loss</div>
-                  <div className="font-semibold text-destructive">-{parsedPolicy.maximum_session_loss} USDT</div>
+                  <div className="font-bold text-sm text-destructive">-{parsedPolicy.maximum_session_loss} USDT</div>
                 </div>
-                <div className="p-2 rounded bg-card border border-border/50">
-                  <div className="text-[10px] text-muted-foreground">Max Leverage</div>
-                  <div className="font-semibold">{parsedPolicy.maximum_leverage}x Isolated</div>
+                <div className="p-2.5 rounded-lg bg-card border border-border/60 shadow-xs">
+                  <div className="text-[10px] text-muted-foreground">Max Leverage Limit</div>
+                  <div className="font-bold text-sm text-primary">{parsedPolicy.maximum_leverage}x Isolated</div>
                 </div>
               </div>
 
@@ -502,10 +509,10 @@ export function AIScalpTrader() {
                     <div
                       key={idx}
                       className={cn(
-                        "p-2.5 rounded-md text-xs flex items-start gap-2 border",
+                        "p-2.5 rounded-lg text-xs flex items-start gap-2 border",
                         w.level === "critical"
                           ? "bg-destructive/10 text-destructive border-destructive/30"
-                          : "bg-warning/10 text-warning border-warning/30"
+                          : "bg-amber-500/10 text-amber-500 border-amber-500/30"
                       )}
                     >
                       <ShieldAlert className="h-4 w-4 shrink-0 mt-0.5" />
@@ -536,19 +543,51 @@ export function AIScalpTrader() {
 
           return (
             <>
-              <div className="p-5 rounded-xl bg-card border-2 border-primary/40 space-y-4 shadow-sm">
+              {/* Active Session Stats Banner */}
+              {activeSession && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="p-4 rounded-xl bg-card border border-border/80 shadow-xs">
+                    <div className="text-xs text-muted-foreground">Active Session PnL</div>
+                    <div className={cn("text-lg font-extrabold mt-0.5", liveTotalPnl >= 0 ? "text-emerald-500" : "text-destructive")}>
+                      {liveTotalPnl >= 0 ? "+" : ""}{liveTotalPnl.toFixed(4)} USDT
+                    </div>
+                  </div>
+                  <div className="p-4 rounded-xl bg-card border border-border/80 shadow-xs">
+                    <div className="text-xs text-muted-foreground">Session Win Rate</div>
+                    <div className="text-lg font-extrabold text-foreground mt-0.5">
+                      {activeSession.stats?.win_rate_pct || 0}% ({activeSession.stats?.winning_trades || 0}W / {activeSession.stats?.losing_trades || 0}L)
+                    </div>
+                  </div>
+                  <div className="p-4 rounded-xl bg-card border border-border/80 shadow-xs">
+                    <div className="text-xs text-muted-foreground">Active Positions</div>
+                    <div className="text-lg font-extrabold text-primary mt-0.5">
+                      {openPositionsList.length} Open Position{openPositionsList.length === 1 ? "" : "s"}
+                    </div>
+                  </div>
+                  <div className="p-4 rounded-xl bg-card border border-border/80 shadow-xs">
+                    <div className="text-xs text-muted-foreground">Current Capital</div>
+                    <div className="text-lg font-extrabold text-foreground mt-0.5">
+                      ${(activeSession.current_capital_usdt || 0).toFixed(2)} USDT
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="p-6 rounded-2xl bg-card border-2 border-primary/40 space-y-5 shadow-md">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Flame className="h-5 w-5 text-primary animate-bounce" />
-                    <h3 className="font-bold text-base">
-                      Active Futures Positions & Live PnL Desk ({openPositionsList.length} Active)
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-lg bg-primary/15 text-primary">
+                      <Flame className="h-5 w-5 animate-bounce" />
+                    </div>
+                    <h3 className="font-extrabold text-lg tracking-tight">
+                      Active Futures Positions & Live Trade Desk ({openPositionsList.length} Active)
                     </h3>
                   </div>
 
                   {/* Human Approval Toggle Switch */}
-                  <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg bg-muted/60 border border-border/60 text-xs shrink-0">
+                  <div className="flex items-center gap-2.5 px-3.5 py-1.5 rounded-xl bg-muted/60 border border-border/60 text-xs shrink-0 shadow-xs">
                     <ShieldAlert className={cn("h-4 w-4", requireApproval ? "text-primary animate-pulse" : "text-muted-foreground")} />
-                    <span className="font-semibold text-foreground">Require Human Approval</span>
+                    <span className="font-bold text-foreground">Require Human Approval</span>
                     <button
                       type="button"
                       onClick={() => setRequireApproval(!requireApproval)}
@@ -569,7 +608,7 @@ export function AIScalpTrader() {
 
                 {/* Pending Proposal Approval Modal Alert */}
                 {pendingProposal && (
-                  <div className="p-4 rounded-xl bg-primary/10 border-2 border-primary/60 space-y-3 shadow-md animate-pulse">
+                  <div className="p-5 rounded-2xl bg-primary/10 border-2 border-primary/60 space-y-4 shadow-lg animate-pulse">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <ShieldAlert className="h-5 w-5 text-primary" />
@@ -577,12 +616,12 @@ export function AIScalpTrader() {
                           🚨 TRADE PROPOSAL APPROVAL REQUIRED (Human Approval Gate ON)
                         </span>
                       </div>
-                      <span className="text-xs font-semibold px-2 py-0.5 rounded bg-primary/20 text-primary">
+                      <span className="text-xs font-bold px-2.5 py-0.5 rounded-lg bg-primary/20 text-primary border border-primary/40">
                         Setup Quality: {pendingProposal.setup_quality_score || 85}%
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs bg-card/80 p-3 rounded-lg border border-border/50">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs bg-card/90 p-3.5 rounded-xl border border-border/60">
                       <div>
                         <div className="text-[10px] text-muted-foreground">Market & Setup</div>
                         <div className="font-bold text-sm text-foreground">
@@ -629,34 +668,41 @@ export function AIScalpTrader() {
                 {openPositionsList.length > 0 ? (
                   <div className="space-y-6">
                     {openPositionsList.map((trade, idx) => (
-                      <div key={trade.trade_id || idx} className="p-5 rounded-xl bg-card border border-border/80 space-y-4 shadow-sm">
-                        <div className="flex items-center justify-between flex-wrap gap-2">
-                          <div className="flex items-center gap-2.5">
+                      <div
+                        key={trade.trade_id || idx}
+                        className="p-5 rounded-2xl bg-gradient-to-br from-card via-card to-muted/20 border-2 border-border/90 space-y-4 shadow-md hover:border-primary/40 transition-all"
+                      >
+                        <div className="flex items-center justify-between flex-wrap gap-3">
+                          <div className="flex items-center gap-3">
                             {trade.coin_icon ? (
                               <img
                                 src={trade.coin_icon}
                                 alt={trade.symbol}
-                                className="h-6 w-6 rounded-full object-cover border border-border/50 shrink-0"
+                                className="h-7 w-7 rounded-full object-cover border border-border/50 shrink-0 shadow-xs"
                                 onError={(e) => {
                                   (e.target as HTMLImageElement).src = "https://assets.coingecko.com/coins/images/1/large/bitcoin.png";
                                 }}
                               />
                             ) : (
-                              <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center font-bold text-[10px] text-primary shrink-0">
+                              <div className="h-7 w-7 rounded-full bg-primary/20 flex items-center justify-center font-bold text-xs text-primary shrink-0">
                                 {trade.symbol.slice(0, 3)}
                               </div>
                             )}
-                            <span
-                              className={cn(
-                                "px-2.5 py-0.5 text-xs font-bold rounded",
-                                trade.direction === "LONG"
-                                  ? "bg-emerald-500/15 text-emerald-500"
-                                  : "bg-destructive/15 text-destructive"
-                              )}
-                            >
-                              {trade.symbol} {trade.direction} {trade.leverage}x Isolated
-                            </span>
-                            <span className="text-xs text-muted-foreground font-mono">Trade ID: {trade.trade_id}</span>
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={cn(
+                                  "px-3 py-1 text-xs font-extrabold rounded-lg shadow-xs",
+                                  trade.direction === "LONG"
+                                    ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
+                                    : "bg-destructive/15 text-destructive border border-destructive/30"
+                                )}
+                              >
+                                {trade.symbol} {trade.direction} {trade.leverage}x Isolated
+                              </span>
+                              <span className="text-[11px] px-2 py-0.5 rounded bg-muted text-muted-foreground font-mono">
+                                Bitget Verified
+                              </span>
+                            </div>
                           </div>
 
                           <button
@@ -677,41 +723,42 @@ export function AIScalpTrader() {
                                 setIsClosing(false);
                               }
                             }}
-                            className="px-3 py-1 rounded-lg bg-destructive text-destructive-foreground text-xs font-bold hover:bg-destructive/90 disabled:opacity-50 transition-all shadow-xs"
+                            className="px-4 py-1.5 rounded-xl bg-destructive text-destructive-foreground text-xs font-bold hover:bg-destructive/90 disabled:opacity-50 transition-all shadow-sm cursor-pointer"
                           >
                             {isClosing ? "Closing..." : "Close Position"}
                           </button>
                         </div>
 
-                        {/* CoinGecko Market Metrics Pill Bar */}
-                        <div className="flex items-center gap-3 text-xs bg-muted/40 p-2.5 rounded-lg border border-border/50 text-muted-foreground flex-wrap">
-                          <span className="font-semibold text-foreground flex items-center gap-1 shrink-0">
-                            🦎 CoinGecko Data:
+                        {/* CoinGecko Market Metrics Bar */}
+                        <div className="flex items-center gap-3 text-xs bg-muted/50 p-3 rounded-xl border border-border/50 text-muted-foreground flex-wrap shadow-inner">
+                          <span className="font-bold text-foreground flex items-center gap-1 shrink-0">
+                            🦎 CoinGecko Live Metrics:
                           </span>
                           <span>
-                            24h Vol: <strong className="text-foreground font-semibold">${formatLargeNumber(trade.coingecko_volume_24h)}</strong>
+                            24h Vol: <strong className="text-foreground font-bold">${formatLargeNumber(trade.coingecko_volume_24h)}</strong>
                           </span>
                           <span>•</span>
                           <span>
-                            Market Cap: <strong className="text-foreground font-semibold">${formatLargeNumber(trade.coingecko_market_cap)}</strong>{" "}
-                            {trade.coingecko_rank ? <span className="text-primary font-bold">(#{trade.coingecko_rank})</span> : ""}
+                            Market Cap: <strong className="text-foreground font-bold">${formatLargeNumber(trade.coingecko_market_cap)}</strong>{" "}
+                            {trade.coingecko_rank ? <span className="text-primary font-bold">(Rank #{trade.coingecko_rank})</span> : ""}
                           </span>
                         </div>
 
+                        {/* Position Metrics Grid */}
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                          <div className="p-3 rounded bg-muted/40 border border-border/50">
+                          <div className="p-3.5 rounded-xl bg-card border border-border/60 shadow-xs">
                             <div className="text-[10px] text-muted-foreground">Entry Price</div>
-                            <div className="font-semibold text-sm">${trade.entry_price?.toLocaleString()}</div>
+                            <div className="font-bold text-sm text-foreground">${trade.entry_price?.toLocaleString()}</div>
                           </div>
-                          <div className="p-3 rounded bg-muted/40 border border-border/50">
+                          <div className="p-3.5 rounded-xl bg-card border border-border/60 shadow-xs">
                             <div className="text-[10px] text-muted-foreground">Current Mark Price</div>
-                            <div className="font-semibold text-sm">${trade.current_price?.toLocaleString()}</div>
+                            <div className="font-bold text-sm text-foreground">${trade.current_price?.toLocaleString()}</div>
                           </div>
-                          <div className="p-3 rounded bg-muted/40 border border-border/50">
+                          <div className="p-3.5 rounded-xl bg-card border border-border/60 shadow-xs">
                             <div className="text-[10px] text-muted-foreground">Unrealized PnL ($ & ROE %)</div>
                             <div
                               className={cn(
-                                "font-bold text-base",
+                                "font-extrabold text-base",
                                 (trade.unrealized_pnl_usdt || 0) >= 0 ? "text-emerald-500" : "text-destructive"
                               )}
                             >
@@ -720,9 +767,9 @@ export function AIScalpTrader() {
                               {(trade.unrealized_pnl_pct || 0).toFixed(2)}%)
                             </div>
                           </div>
-                          <div className="p-3 rounded bg-muted/40 border border-border/50">
-                            <div className="text-[10px] text-muted-foreground">Native Take-Profit / Stop-Loss</div>
-                            <div className="font-semibold text-sm">
+                          <div className="p-3.5 rounded-xl bg-card border border-border/60 shadow-xs">
+                            <div className="text-[10px] text-muted-foreground">Take-Profit / Stop-Loss</div>
+                            <div className="font-bold text-sm">
                               <span className="text-emerald-500">${trade.take_profit_price}</span> /{" "}
                               <span className="text-destructive">${trade.stop_loss_price}</span>
                             </div>
@@ -730,9 +777,9 @@ export function AIScalpTrader() {
                         </div>
 
                         {trade.proposal?.why_this_trade && (
-                          <div className="p-3 rounded bg-muted/30 border border-border/40 text-xs space-y-1">
+                          <div className="p-3.5 rounded-xl bg-muted/40 border border-border/50 text-xs space-y-1">
                             <div className="font-semibold text-foreground flex items-center justify-between">
-                              <span>Strategy Rationale & Expected Edge</span>
+                              <span>Strategy Rationale & Edge</span>
                               <span className="text-emerald-500 font-bold">
                                 {trade.proposal.why_this_trade.expected_net_edge}
                               </span>
@@ -745,15 +792,15 @@ export function AIScalpTrader() {
                         )}
 
                         {/* 15-Minute TradingView Live Chart Embed */}
-                        <div className="pt-2 border-t border-border/50 space-y-2">
-                          <div className="flex items-center justify-between text-xs font-semibold text-foreground">
-                            <span className="flex items-center gap-1.5">
+                        <div className="pt-2 border-t border-border/60 space-y-2.5">
+                          <div className="flex items-center justify-between text-xs font-bold text-foreground">
+                            <span className="flex items-center gap-2">
                               <LineChart className="h-4 w-4 text-primary" />
                               15-Minute Candlestick Chart (TradingView Live Feed)
                             </span>
                             <span className="text-[10px] text-muted-foreground font-mono">TF: 15m | Bitget Futures</span>
                           </div>
-                          <div className="h-[280px] w-full rounded-xl border border-border/70 overflow-hidden shadow-inner bg-zinc-950">
+                          <div className="h-[290px] w-full rounded-2xl border border-border/80 overflow-hidden shadow-inner bg-zinc-950">
                             <iframe
                               title={`TradingView 15m Chart for ${trade.symbol}`}
                               src={`https://s.tradingview.com/widgetembed/?frameElementId=tv_${trade.symbol}&symbol=BITGET%3A${trade.symbol}&interval=15&hidesidetoolbar=1&hidedetachedtoolbar=1&symboledit=0&saveimage=0&toolbarbg=18181b&theme=dark&style=1&timezone=Etc%2FUTC&locale=en`}
@@ -765,151 +812,78 @@ export function AIScalpTrader() {
                     ))}
                   </div>
                 ) : activeSession && activeSession.status === "ACTIVE" ? (
-                  <div className="p-4 rounded bg-muted/30 border border-border/40 flex flex-col gap-2 text-xs">
+                  <div className="p-6 rounded-xl bg-muted/30 border border-border/40 flex flex-col gap-2 text-xs">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <RefreshCw className="h-4 w-4 text-primary animate-spin" />
-                        <span className="font-semibold text-foreground">
+                        <span className="font-bold text-foreground">
                           Session is ACTIVE — Autonomous Scanner evaluating Bitget futures candidates...
                         </span>
                       </div>
-                      <span className="text-muted-foreground text-[11px]">Scanning 6 liquid candidates</span>
+                      <span className="text-emerald-500 font-mono text-[11px]">Cycle: 3s</span>
                     </div>
+                    <p className="text-muted-foreground text-[11px]">
+                      The multi-agent system is actively reading indicator edges, checking news vetoes, and computing net expected profit. When a setup meets all strategy thresholds, a trade will open.
+                    </p>
                   </div>
                 ) : (
-                  <div className="p-4 rounded bg-muted/30 border border-border/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
-                    <div>
-                      <span className="font-semibold text-foreground">No Active Session Running</span>
-                      <p className="text-muted-foreground text-[11px] mt-0.5">
-                        Click "Start Session" above to launch autonomous multi-agent scalp trading on Bitget.
-                      </p>
-                    </div>
-                    <button
-                      onClick={handleStartSession}
-                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground font-bold shadow hover:opacity-90 transition-all shrink-0"
-                    >
-                      <Play className="h-3.5 w-3.5 fill-current" />
-                      <span>Start Autonomous Session</span>
-                    </button>
+                  <div className="p-8 rounded-xl bg-muted/20 border border-border/40 text-center space-y-2">
+                    <Bot className="h-8 w-8 text-muted-foreground mx-auto opacity-50" />
+                    <p className="font-bold text-sm text-foreground">No Open Scalp Positions Currently Active</p>
+                    <p className="text-xs text-muted-foreground max-w-md mx-auto">
+                      Click <strong>"Start Scalp Engine"</strong> above to launch the autonomous multi-agent scanner and begin live execution on Bitget.
+                    </p>
                   </div>
                 )}
-              </div>
-
-              {/* 4. Session Target & Live Performance */}
-              <div className="p-5 rounded-xl bg-card border border-border/80 space-y-4 shadow-sm">
-                <div className="flex items-center justify-between text-xs font-semibold">
-                  <div className="flex items-center gap-3">
-                    <span>Session Target & Live Performance</span>
-                    {activeSession && activeSession.stats && (
-                      <span className="text-[11px] font-normal text-muted-foreground">
-                        Trades: {activeSession.stats.total_trades} | Win Rate: {activeSession.stats.win_rate_pct}%
-                      </span>
-                    )}
-                  </div>
-                  <span className="text-muted-foreground">
-                    Session ID: {activeSession?.session_id || "ses_idle"}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between text-xs">
-                      <span className="text-muted-foreground">
-                        Target Profit (+{activeSession?.policy?.target_profit || 5} USDT)
-                      </span>
-                      <span className="font-semibold text-emerald-500">
-                        {liveTotalPnl >= 0 ? `+${liveTotalPnl.toFixed(2)}` : "0.00"} USDT
-                      </span>
-                    </div>
-                    <div className="h-2 rounded-full bg-muted overflow-hidden">
-                      <div
-                        className="h-full bg-emerald-500 transition-all duration-300"
-                        style={{
-                          width: `${Math.min(
-                            100,
-                            Math.max(0, (liveTotalPnl / (activeSession?.policy?.target_profit || 5)) * 100)
-                          )}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between text-xs">
-                      <span className="text-muted-foreground">
-                        Max Loss Limit (-{activeSession?.policy?.maximum_session_loss || 2} USDT)
-                      </span>
-                      <span className="font-semibold text-destructive">
-                        {liveTotalPnl < 0 ? `${liveTotalPnl.toFixed(2)}` : "0.00"} USDT
-                      </span>
-                    </div>
-                    <div className="h-2 rounded-full bg-muted overflow-hidden">
-                      <div
-                        className="h-full bg-destructive transition-all duration-300"
-                        style={{
-                          width: `${Math.min(
-                            100,
-                            Math.max(
-                              0,
-                              (Math.abs(Math.min(0, liveTotalPnl)) /
-                                (activeSession?.policy?.maximum_session_loss || 2)) *
-                                100
-                            )
-                          )}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
               </div>
             </>
           );
         })()}
 
-        {/* 5. Completed Trades History (if available) */}
+        {/* 4. Completed Trades History (if available) */}
         {recentTrades && recentTrades.length > 0 && (
-          <div className="p-5 rounded-xl bg-card border border-border/80 space-y-4 shadow-sm">
+          <div className="p-6 rounded-2xl bg-card border border-border/80 space-y-4 shadow-sm">
             <div className="flex items-center justify-between">
               <h3 className="font-bold text-base">Completed Session Trades</h3>
-              <span className="text-xs text-muted-foreground">{recentTrades.length} trades recorded</span>
+              <span className="text-xs text-muted-foreground font-mono">{recentTrades.length} trades recorded</span>
             </div>
 
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="border-b border-border/60 text-muted-foreground font-medium">
-                    <th className="pb-2">Symbol</th>
-                    <th className="pb-2">Side</th>
-                    <th className="pb-2">Entry Price</th>
-                    <th className="pb-2">Exit Price</th>
-                    <th className="pb-2">Net PnL</th>
-                    <th className="pb-2">Status</th>
-                    <th className="pb-2 text-right">Reason</th>
+                    <th className="pb-2.5">Symbol</th>
+                    <th className="pb-2.5">Side</th>
+                    <th className="pb-2.5">Entry Price</th>
+                    <th className="pb-2.5">Exit Price</th>
+                    <th className="pb-2.5">Net PnL</th>
+                    <th className="pb-2.5">Status</th>
+                    <th className="pb-2.5 text-right">Reason</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/40">
                   {recentTrades.map((t) => (
-                    <tr key={t.trade_id} className="hover:bg-muted/40">
-                      <td className="py-2.5 font-semibold">{t.symbol}</td>
-                      <td className="py-2.5">
+                    <tr key={t.trade_id} className="hover:bg-muted/40 transition-colors">
+                      <td className="py-3 font-bold">{t.symbol}</td>
+                      <td className="py-3">
                         <span
                           className={cn(
-                            "px-2 py-0.5 text-[10px] font-bold rounded",
+                            "px-2.5 py-0.5 text-[10px] font-bold rounded-md",
                             t.direction === "LONG" ? "bg-emerald-500/15 text-emerald-500" : "bg-destructive/15 text-destructive"
                           )}
                         >
                           {t.direction} {t.leverage}x
                         </span>
                       </td>
-                      <td className="py-2.5">${t.entry_price}</td>
-                      <td className="py-2.5">${t.exit_price || t.current_price}</td>
-                      <td className="py-2.5 font-bold">
+                      <td className="py-3">${t.entry_price}</td>
+                      <td className="py-3">${t.exit_price || t.current_price}</td>
+                      <td className="py-3 font-bold">
                         <span className={t.net_pnl_usdt >= 0 ? "text-emerald-500" : "text-destructive"}>
                           {t.net_pnl_usdt >= 0 ? "+" : ""}{t.net_pnl_usdt?.toFixed(4)} USDT
                         </span>
                       </td>
-                      <td className="py-2.5 font-medium">{t.status}</td>
-                      <td className="py-2.5 text-right text-muted-foreground">{t.exit_reason || "OPEN"}</td>
+                      <td className="py-3 font-semibold">{t.status}</td>
+                      <td className="py-3 text-right text-muted-foreground font-mono">{t.exit_reason || "CLOSED"}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -919,13 +893,13 @@ export function AIScalpTrader() {
         )}
 
         {/* 5. Realtime Multi-Agent Execution & Decision Stream */}
-        <div className="p-5 rounded-xl bg-card border-2 border-primary/30 space-y-4 shadow-sm">
+        <div className="p-6 rounded-2xl bg-card border-2 border-primary/30 space-y-4 shadow-md">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <div className="flex items-center gap-2">
                 <Bot className="h-5 w-5 text-primary" />
-                <h3 className="font-bold text-base">🤖 Multi-Agent Realtime Execution & Decision Stream</h3>
-                <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-emerald-500/15 text-emerald-500 animate-pulse">
+                <h3 className="font-extrabold text-base">🤖 Multi-Agent Realtime Execution & Decision Stream</h3>
+                <span className="px-2.5 py-0.5 text-[10px] font-extrabold rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 animate-pulse">
                   LIVE ENGINE STREAM
                 </span>
               </div>
@@ -935,15 +909,15 @@ export function AIScalpTrader() {
             </div>
 
             {/* Agent Filter Tabs */}
-            <div className="flex items-center gap-1.5 bg-muted/60 p-1 rounded-lg text-xs overflow-x-auto shrink-0">
+            <div className="flex items-center gap-1.5 bg-muted/70 p-1 rounded-xl text-xs overflow-x-auto shrink-0 border border-border/50">
               {["ALL", "Scanner", "Strategy", "Risk", "Execution"].map((filter) => (
                 <button
                   key={filter}
                   onClick={() => setSelectedAgentFilter(filter)}
                   className={cn(
-                    "px-3 py-1 rounded-md font-semibold transition-all shrink-0",
+                    "px-3 py-1 rounded-lg font-bold transition-all shrink-0 cursor-pointer",
                     selectedAgentFilter === filter
-                      ? "bg-background text-foreground shadow-xs"
+                      ? "bg-card text-foreground shadow-xs"
                       : "text-muted-foreground hover:text-foreground"
                   )}
                 >
@@ -953,7 +927,7 @@ export function AIScalpTrader() {
             </div>
           </div>
 
-          <div className="p-4 rounded-xl bg-zinc-950 border border-zinc-800/80 font-mono text-xs space-y-2.5 max-h-[380px] overflow-y-auto shadow-inner text-zinc-300">
+          <div className="p-4.5 rounded-2xl bg-zinc-950 border border-zinc-800/90 font-mono text-xs space-y-2.5 max-h-[380px] overflow-y-auto shadow-inner text-zinc-300">
             {agentLogs && agentLogs.length > 0 ? (
               agentLogs
                 .filter((log) => {
@@ -967,14 +941,14 @@ export function AIScalpTrader() {
                 .map((log, idx) => (
                   <div
                     key={idx}
-                    className="p-2.5 rounded bg-zinc-900/80 border border-zinc-800/60 space-y-1.5 hover:border-zinc-700/60 transition-all"
+                    className="p-3 rounded-xl bg-zinc-900/90 border border-zinc-800/70 space-y-1.5 hover:border-zinc-700/80 transition-all shadow-xs"
                   >
                     <div className="flex items-center justify-between flex-wrap gap-2 text-[11px]">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-zinc-500 font-bold">[{log.timestamp}]</span>
                         <span
                           className={cn(
-                            "px-2 py-0.5 rounded text-[10px] font-bold border",
+                            "px-2.5 py-0.5 rounded-md text-[10px] font-bold border",
                             log.agent.includes("Scanner")
                               ? "bg-blue-500/15 text-blue-400 border-blue-500/30"
                               : log.agent.includes("Strategy")
@@ -986,7 +960,7 @@ export function AIScalpTrader() {
                         >
                           {log.agent}
                         </span>
-                        <span className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 text-[10px] font-bold">
+                        <span className="px-2 py-0.5 rounded-md bg-zinc-800 text-zinc-300 text-[10px] font-bold">
                           {log.action}
                         </span>
                       </div>
@@ -1000,7 +974,7 @@ export function AIScalpTrader() {
                         <summary className="cursor-pointer hover:text-zinc-200 font-semibold select-none">
                           🔍 View Agent Decision Data & Output JSON
                         </summary>
-                        <pre className="mt-1.5 p-2 rounded bg-zinc-950 border border-zinc-800 overflow-x-auto text-[10px] text-emerald-400 leading-tight">
+                        <pre className="mt-1.5 p-2.5 rounded-lg bg-zinc-950 border border-zinc-800 overflow-x-auto text-[10px] text-emerald-400 leading-tight">
                           {JSON.stringify(log.details, null, 2)}
                         </pre>
                       </details>
@@ -1017,16 +991,23 @@ export function AIScalpTrader() {
         </div>
 
         {/* 6. Quantitative Opportunity Scanner */}
-        <div className="p-5 rounded-xl bg-card border border-border/80 space-y-4 shadow-sm">
+        <div className="p-6 rounded-2xl bg-card border border-border/80 space-y-4 shadow-sm">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Zap className="h-5 w-5 text-primary" />
-              <h2 className="font-semibold text-base">Quantitative Opportunity Scanner</h2>
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-lg bg-primary/15 text-primary">
+                <Zap className="h-5 w-5" />
+              </div>
+              <h2 className="font-bold text-base">Quantitative Opportunity Scanner</h2>
             </div>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span>Funnel: {funnelCounts.all_markets} scanned → {funnelCounts.passed_liquidity} liquid → {funnelCounts.top_candidates} shortlisted</span>
-              <button onClick={loadMarketData} className="p-1 hover:text-foreground">
-                <RefreshCw className={cn("h-3.5 w-3.5", loadingCandidates && "animate-spin")} />
+            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+              <span className="font-semibold text-foreground">
+                Candidates: {candidates.length} Scanned
+              </span>
+              <button
+                onClick={loadMarketData}
+                className="p-1.5 rounded-lg bg-muted hover:bg-muted/80 text-foreground transition-all cursor-pointer"
+              >
+                <RefreshCw className={cn("h-4 w-4", loadingCandidates && "animate-spin text-primary")} />
               </button>
             </div>
           </div>
@@ -1035,13 +1016,13 @@ export function AIScalpTrader() {
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-border/60 text-muted-foreground font-medium">
-                  <th className="pb-2.5">Symbol</th>
-                  <th className="pb-2.5">Price</th>
-                  <th className="pb-2.5">24h Vol</th>
-                  <th className="pb-2.5">Spread</th>
-                  <th className="pb-2.5">Opportunity Score</th>
-                  <th className="pb-2.5">Regime</th>
-                  <th className="pb-2.5 text-right">Action</th>
+                  <th className="pb-3">Symbol</th>
+                  <th className="pb-3">Price</th>
+                  <th className="pb-3">24h Vol</th>
+                  <th className="pb-3">Spread</th>
+                  <th className="pb-3">Opportunity Score</th>
+                  <th className="pb-3">Regime</th>
+                  <th className="pb-3 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/40">
@@ -1051,30 +1032,30 @@ export function AIScalpTrader() {
                     onClick={() => setSelectedSymbol(cand.symbol)}
                     className={cn(
                       "hover:bg-muted/50 transition-colors cursor-pointer",
-                      selectedSymbol === cand.symbol && "bg-primary/10 font-medium"
+                      selectedSymbol === cand.symbol && "bg-primary/10 font-bold"
                     )}
                   >
-                    <td className="py-3 flex items-center gap-2">
-                      <img src={cand.coin_icon} alt="" className="h-5 w-5 rounded-full" />
-                      <span className="font-semibold">{cand.symbol}</span>
+                    <td className="py-3 flex items-center gap-2.5">
+                      <img src={cand.coin_icon} alt="" className="h-6 w-6 rounded-full shrink-0 border border-border/40" />
+                      <span className="font-bold">{cand.symbol}</span>
                     </td>
-                    <td className="py-3">${cand.price_usdt?.toLocaleString()}</td>
-                    <td className="py-3">${((cand.volume_24h_usdt || 0) / 1000000).toFixed(1)}M</td>
-                    <td className="py-3">{cand.bid_ask_spread_bps} bps</td>
+                    <td className="py-3 font-semibold">${cand.price_usdt?.toLocaleString()}</td>
+                    <td className="py-3 font-semibold">${((cand.volume_24h_usdt || 0) / 1000000).toFixed(1)}M</td>
+                    <td className="py-3 font-mono">{cand.bid_ask_spread_bps} bps</td>
                     <td className="py-3">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-primary">{cand.opportunity_score}/100</span>
-                        <div className="w-16 h-1.5 rounded-full bg-muted overflow-hidden">
+                      <div className="flex items-center gap-2.5">
+                        <span className="font-extrabold text-primary">{cand.opportunity_score}/100</span>
+                        <div className="w-20 h-2 rounded-full bg-muted overflow-hidden">
                           <div
-                            className="h-full bg-primary"
+                            className="h-full bg-primary rounded-full"
                             style={{ width: `${cand.opportunity_score}%` }}
                           />
                         </div>
                       </div>
                     </td>
                     <td className="py-3">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-info/10 text-info">
-                        {cand.regime?.primary_regime || "STRONG_DOWNTREND"}
+                      <span className="px-2.5 py-0.5 rounded-md text-[10px] font-bold bg-info/10 text-info border border-info/20">
+                        {cand.regime?.primary_regime || "TRENDING"}
                       </span>
                     </td>
                     <td className="py-3 text-right">
@@ -1083,7 +1064,7 @@ export function AIScalpTrader() {
                           e.stopPropagation();
                           setSelectedSymbol(cand.symbol);
                         }}
-                        className="px-2.5 py-1 rounded bg-muted hover:bg-primary/20 text-xs text-foreground font-medium"
+                        className="px-3 py-1 rounded-lg bg-muted hover:bg-primary/20 text-xs text-foreground font-semibold transition-all cursor-pointer"
                       >
                         Inspect
                       </button>
@@ -1097,35 +1078,35 @@ export function AIScalpTrader() {
 
         {/* 7. Dynamic Market Analysis Detail (for selected symbol) */}
         {symbolDetail && (
-          <div className="p-5 rounded-xl bg-card border border-border/80 space-y-4 shadow-sm">
+          <div className="p-6 rounded-2xl bg-card border border-border/80 space-y-4 shadow-sm">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <img src={symbolDetail.coin_icon} alt="" className="h-6 w-6 rounded-full" />
-                <h3 className="font-bold text-base">{symbolDetail.symbol} Real-Time Analytics</h3>
+              <div className="flex items-center gap-2.5">
+                <img src={symbolDetail.coin_icon} alt="" className="h-6 w-6 rounded-full shrink-0" />
+                <h3 className="font-extrabold text-base">{symbolDetail.symbol} Real-Time Indicator Analytics</h3>
               </div>
-              <span className="text-xs text-muted-foreground">Bitget USDT Futures</span>
+              <span className="text-xs text-muted-foreground font-mono">Bitget USDT Futures</span>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs">
-              <div className="p-2.5 rounded bg-muted/40 border border-border/50">
+              <div className="p-3 rounded-xl bg-muted/40 border border-border/50 shadow-xs">
                 <div className="text-[10px] text-muted-foreground">EMA 9 / EMA 20</div>
-                <div className="font-semibold">${symbolDetail.indicators?.ema9} / ${symbolDetail.indicators?.ema20}</div>
+                <div className="font-bold text-foreground mt-0.5">${symbolDetail.indicators?.ema9} / ${symbolDetail.indicators?.ema20}</div>
               </div>
-              <div className="p-2.5 rounded bg-muted/40 border border-border/50">
+              <div className="p-3 rounded-xl bg-muted/40 border border-border/50 shadow-xs">
                 <div className="text-[10px] text-muted-foreground">VWAP</div>
-                <div className="font-semibold">${symbolDetail.indicators?.vwap}</div>
+                <div className="font-bold text-foreground mt-0.5">${symbolDetail.indicators?.vwap}</div>
               </div>
-              <div className="p-2.5 rounded bg-muted/40 border border-border/50">
+              <div className="p-3 rounded-xl bg-muted/40 border border-border/50 shadow-xs">
                 <div className="text-[10px] text-muted-foreground">RSI (14)</div>
-                <div className="font-semibold">{symbolDetail.indicators?.rsi14}</div>
+                <div className="font-bold text-foreground mt-0.5">{symbolDetail.indicators?.rsi14}</div>
               </div>
-              <div className="p-2.5 rounded bg-muted/40 border border-border/50">
+              <div className="p-3 rounded-xl bg-muted/40 border border-border/50 shadow-xs">
                 <div className="text-[10px] text-muted-foreground">ADX (14)</div>
-                <div className="font-semibold">{symbolDetail.indicators?.adx14}</div>
+                <div className="font-bold text-foreground mt-0.5">{symbolDetail.indicators?.adx14}</div>
               </div>
-              <div className="p-2.5 rounded bg-muted/40 border border-border/50">
+              <div className="p-3 rounded-xl bg-muted/40 border border-border/50 shadow-xs">
                 <div className="text-[10px] text-muted-foreground">Volume Ratio</div>
-                <div className="font-semibold">{symbolDetail.indicators?.volume_ratio_30}x mean</div>
+                <div className="font-bold text-foreground mt-0.5">{symbolDetail.indicators?.volume_ratio_30}x mean</div>
               </div>
             </div>
           </div>
