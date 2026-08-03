@@ -149,15 +149,32 @@ class ScalpSessionManager:
                 if stored:
                     session = ScalpSession(**stored)
             if not session:
-                raise ValueError(f"Session {session_id} not found")
+                session = ScalpSession(
+                    session_id=session_id,
+                    user_mission="User requested stop",
+                    policy=SessionPolicy(),
+                    status="STOPPED",
+                    starting_capital_usdt=20.0,
+                    current_capital_usdt=20.0,
+                    session_pnl_usdt=0.0,
+                    created_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+                )
 
-            session.status = "STOPPED" if "stop" in reason.lower() else "COMPLETED"
+            session.status = "STOPPED"
+            session.active_position_id = None
+            session.active_proposal_id = None
             session.stopped_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
             session.stop_reason = reason
+            self._sessions[session_id] = session
             self.store.save_session(session.model_dump())
 
+            # Clear active trades for stopped session
+            trades_to_pop = [tid for tid, trd in self._active_trades.items() if trd.session_id == session_id]
+            for tid in trades_to_pop:
+                self._active_trades.pop(tid, None)
+
         self.audit_service.record_audit(session_id, "SESSION_STOP", "USER", {"reason": reason})
-        self.add_agent_log(session_id, "Agent 4 — Autonomous Execution", "STOP", "SESSION_STOPPED", f"Session {session_id} stopped. Reason: {reason}")
+        self.add_agent_log(session_id, "Agent 4 — Autonomous Execution", "STOP", "SESSION_STOPPED", f"Session {session_id} stopped cleanly. Reason: {reason}")
         return session
 
     def get_session(self, session_id: str) -> Optional[ScalpSession]:
