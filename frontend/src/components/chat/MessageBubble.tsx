@@ -1,6 +1,6 @@
 import i18n from '@/i18n';
 import { Component, memo, useState, useCallback, type ReactNode } from "react";
-import { XCircle, RefreshCw, Copy, Check, Paperclip, Users, Target } from "lucide-react";
+import { XCircle, RefreshCw, Copy, Check, Paperclip, Users, Target, Flame, Camera } from "lucide-react";
 import ReactMarkdown, { type Options as ReactMarkdownOptions } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -39,10 +39,159 @@ const markdownComponents: ReactMarkdownOptions["components"] = {
     if (isIcon) {
       return <img {...props} alt={alt || ""} className="inline-block h-5 w-5 rounded-full object-contain ml-1 -mt-1 shadow-sm" />;
     }
+    const isSnapshotFile = props.src?.includes("/heatmaps/") || props.src?.includes("heatmap_");
+    if (isSnapshotFile) {
+      const symbolMatch = props.src?.match(/heatmap_([A-Z0-9]+)_/i) || alt?.match(/([A-Z0-9]+)/i);
+      const symbol = symbolMatch ? symbolMatch[1].toUpperCase() : "BTC";
+      return (
+        <div className="my-4 p-4 rounded-2xl bg-card border-2 border-emerald-500/40 space-y-3 shadow-xl not-prose">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Camera className="h-4 w-4 text-emerald-400" />
+              <span className="font-extrabold text-sm text-foreground">📸 Captured Liquidation Heatmap ({symbol}/USDT)</span>
+            </div>
+            <span className="px-2.5 py-0.5 text-[10px] font-bold rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+              SAVED HEATMAP PNG SNAPSHOT
+            </span>
+          </div>
+          <div className="rounded-xl border border-zinc-800/90 overflow-hidden shadow-inner bg-zinc-950 p-1">
+            <img
+              src={props.src}
+              alt={alt || `${symbol} Liquidation Heatmap Screenshot`}
+              className="w-full h-auto rounded-lg object-cover shadow-sm"
+            />
+          </div>
+          <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
+            <span>Saved in <code className="text-emerald-400 font-mono">/heatmaps/{props.src?.split('/').pop()}</code></span>
+            <a
+              href={props.src}
+              download={props.src?.split('/').pop() || "heatmap.png"}
+              target="_blank"
+              rel="noreferrer"
+              className="px-2.5 py-1 rounded-md bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 font-semibold transition-all cursor-pointer text-[11px]"
+            >
+              📥 Download PNG Image
+            </a>
+          </div>
+        </div>
+      );
+    }
+    const isSnapshot = props.src?.includes("LiquidationHeatMapSnapshot") || alt?.toLowerCase().includes("screenshot") || alt?.toLowerCase().includes("snapshot");
+    if (isSnapshot) {
+      const symbolMatch = props.src?.match(/symbol=([A-Z0-9]+)/i) || alt?.match(/([A-Z0-9]+)/i);
+      const symbol = symbolMatch ? symbolMatch[1].toUpperCase() : "BTC";
+      return (
+        <div className="my-4 p-4 rounded-2xl bg-card border-2 border-emerald-500/40 space-y-3 shadow-xl not-prose">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Camera className="h-4 w-4 text-emerald-400" />
+              <span className="font-extrabold text-sm text-foreground">📸 Captured Liquidation Heatmap Snapshot ({symbol}/USDT)</span>
+            </div>
+            <span className="px-2.5 py-0.5 text-[10px] font-bold rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+              STATIC SNAPSHOT IMAGE
+            </span>
+          </div>
+          <div className="relative h-[490px] w-full rounded-xl border border-zinc-800/90 overflow-hidden shadow-inner bg-zinc-950 pointer-events-none">
+            <iframe
+              title={`CoinGlass Liquidation Heatmap Snapshot for ${symbol}`}
+              src={`https://www.coinglass.com/pro/futures/LiquidationHeatMap?symbol=${symbol}`}
+              className="absolute -left-[280px] -top-[560px] w-[calc(100%+290px)] h-[calc(100%+600px)] border-0"
+            />
+          </div>
+          <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
+            <span>Captured live from CoinGlass Futures Liquidation Engine</span>
+            <span className="font-mono text-[10px]">High-Res Snapshot</span>
+          </div>
+        </div>
+      );
+    }
+    const isHeatmap = props.src?.includes("coinglass.com") || props.src?.includes("LiquidationHeatMap");
+    if (isHeatmap) {
+      const symbolMatch = props.src?.match(/symbol=([A-Z0-9]+)/i) || alt?.match(/([A-Z0-9]+)/i);
+      const symbol = symbolMatch ? symbolMatch[1].toUpperCase() : "BTC";
+      return (
+        <div className="my-4 p-4 rounded-2xl bg-card border-2 border-primary/40 space-y-3 shadow-lg not-prose">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Flame className="h-4 w-4 text-amber-500 animate-pulse" />
+              <span className="font-extrabold text-sm text-foreground">🔥 CoinGlass Liquidation Heatmap ({symbol}/USDT)</span>
+            </div>
+            <span className="px-2.5 py-0.5 text-[10px] font-bold rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30">
+              LIVE LIQUIDITY CLUSTERS
+            </span>
+          </div>
+          <div className="relative h-[490px] w-full rounded-xl border border-zinc-800/90 overflow-hidden shadow-inner bg-zinc-950">
+            <iframe
+              title={`CoinGlass Liquidation Heatmap for ${symbol}`}
+              src={`https://www.coinglass.com/pro/futures/LiquidationHeatMap?symbol=${symbol}`}
+              className="absolute -left-[280px] -top-[560px] w-[calc(100%+290px)] h-[calc(100%+600px)] border-0 pointer-events-auto"
+            />
+          </div>
+        </div>
+      );
+    }
     return <img {...props} alt={alt || ""} className="max-w-full h-auto rounded-md shadow-sm border my-2" />;
   },
   code: ({ node, inline, className, children, ...props }: any) => {
     void node;
+    const match = /language-(\w+)/.exec(className || "");
+    const lang = match ? match[1] : "";
+    if (lang === "coinglass-heatmap") {
+      const text = String(children).trim();
+      const symbolMatch = text.match(/symbol=([A-Z0-9]+)/i);
+      const symbol = symbolMatch ? symbolMatch[1].toUpperCase() : "BTC";
+      return (
+        <div className="my-4 p-4 rounded-2xl bg-card border-2 border-primary/40 space-y-3 shadow-lg not-prose">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Flame className="h-4 w-4 text-amber-500 animate-pulse" />
+              <span className="font-extrabold text-sm text-foreground">🔥 CoinGlass Liquidation Heatmap ({symbol}/USDT)</span>
+            </div>
+            <span className="px-2.5 py-0.5 text-[10px] font-bold rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30">
+              LIVE LIQUIDITY CLUSTERS
+            </span>
+          </div>
+          <div className="relative h-[490px] w-full rounded-xl border border-zinc-800/90 overflow-hidden shadow-inner bg-zinc-950">
+            <iframe
+              title={`CoinGlass Liquidation Heatmap for ${symbol}`}
+              src={`https://www.coinglass.com/pro/futures/LiquidationHeatMap?symbol=${symbol}`}
+              className="absolute -left-[280px] -top-[560px] w-[calc(100%+290px)] h-[calc(100%+600px)] border-0 pointer-events-auto"
+            />
+          </div>
+        </div>
+      );
+    }
+
+    if (lang === "coinglass-heatmap-snapshot") {
+      const text = String(children).trim();
+      const symbolMatch = text.match(/symbol=([A-Z0-9]+)/i);
+      const symbol = symbolMatch ? symbolMatch[1].toUpperCase() : "BTC";
+      return (
+        <div className="my-4 p-4 rounded-2xl bg-card border-2 border-emerald-500/40 space-y-3 shadow-xl not-prose">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Camera className="h-4 w-4 text-emerald-400" />
+              <span className="font-extrabold text-sm text-foreground">📸 Captured Liquidation Heatmap Snapshot ({symbol}/USDT)</span>
+            </div>
+            <span className="px-2.5 py-0.5 text-[10px] font-bold rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+              STATIC SNAPSHOT IMAGE
+            </span>
+          </div>
+          <div className="relative h-[490px] w-full rounded-xl border border-zinc-800/90 overflow-hidden shadow-inner bg-zinc-950 pointer-events-none">
+            <iframe
+              title={`CoinGlass Liquidation Heatmap Snapshot for ${symbol}`}
+              src={`https://www.coinglass.com/pro/futures/LiquidationHeatMap?symbol=${symbol}`}
+              className="absolute -left-[280px] -top-[560px] w-[calc(100%+290px)] h-[calc(100%+600px)] border-0"
+            />
+          </div>
+          <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
+            <span>Captured live from CoinGlass Futures Liquidation Engine</span>
+            <span className="font-mono text-[10px]">High-Res Snapshot</span>
+          </div>
+        </div>
+      );
+    }
+
     return <code className={className} {...props}>{children}</code>;
   },
 };

@@ -208,6 +208,9 @@ export const scalpApi = {
   getActiveSessions: () =>
     scalpRequest<{ status: string; active_sessions: ScalpSessionData[]; latest_trade?: ScalpTrade }>("/scalp/sessions"),
 
+  getSessionHistory: () =>
+    scalpRequest<{ status: string; total: number; sessions: ScalpSessionData[] }>("/scalp/sessions/history"),
+
   parseMission: (user_mission: string) =>
     scalpRequest<{ status: string; policy: SessionPolicy; warnings: any[] }>("/scalp/sessions/parse", {
       method: "POST",
@@ -222,6 +225,11 @@ export const scalpApi = {
 
   startSession: (session_id: string) =>
     scalpRequest<{ status: string; session: ScalpSessionData }>(`/scalp/sessions/${session_id}/start`, {
+      method: "POST",
+    }),
+
+  stopAllSessions: () =>
+    scalpRequest<{ status: string; message: string; stopped_count: number }>("/scalp/sessions/stop-all", {
       method: "POST",
     }),
 

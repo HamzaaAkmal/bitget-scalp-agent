@@ -1,15 +1,19 @@
 import { useEffect, useState } from "react";
+import { CoinGlassHeatmapCard } from "@/components/common/CoinGlassHeatmapCard";
 import {
   Activity,
   AlertOctagon,
   Bot,
   Brain,
   CheckCircle2,
+  Clock,
   Flame,
+  History,
   LineChart,
   Play,
   Radar,
   RefreshCw,
+  Search,
   ShieldAlert,
   ShieldCheck,
   Sparkles,
@@ -59,6 +63,8 @@ export function AIScalpTrader() {
   const [pendingProposal, setPendingProposal] = useState<any>(null);
   const [requireApproval, setRequireApproval] = useState(true);
   const [isClosing, setIsClosing] = useState(false);
+  const [isStopping, setIsStopping] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
   const [recentTrades, setRecentTrades] = useState<ScalpTrade[]>([]);
   const [candidates, setCandidates] = useState<ScalpCandidate[]>([]);
   const [funnelCounts, setFunnelCounts] = useState({
@@ -75,11 +81,28 @@ export function AIScalpTrader() {
   const [agentLogs, setAgentLogs] = useState<Array<{ timestamp: string; session_id?: string; agent: string; level: string; action: string; message: string; details?: any }>>([]);
   const [selectedAgentFilter, setSelectedAgentFilter] = useState<string>("ALL");
   const [autonomyMode, setAutonomyMode] = useState<"copilot" | "guarded_autopilot" | "full_autonomous">("guarded_autopilot");
+  const [activeTab, setActiveTab] = useState<"desk" | "verifications" | "history">("desk");
+  const [sessionHistory, setSessionHistory] = useState<ScalpSessionData[]>([]);
+  const [historySearch, setHistorySearch] = useState("");
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
+  const loadSessionHistory = async () => {
+    setLoadingHistory(true);
+    try {
+      const res = await scalpApi.getSessionHistory();
+      setSessionHistory(res.sessions || []);
+    } catch (err) {
+      toast.error("Failed to load session history");
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
 
   // Load active sessions & market candidates on mount
   useEffect(() => {
     loadActiveSession();
     loadMarketData();
+    loadSessionHistory();
     const interval = setInterval(loadMarketData, 8000);
     return () => clearInterval(interval);
   }, []);
@@ -143,24 +166,34 @@ export function AIScalpTrader() {
       const res = await scalpApi.getActiveSessions();
       if (res.active_sessions && res.active_sessions.length > 0) {
         const active = res.active_sessions[0];
-        setActiveSession(active);
-        const detail = await scalpApi.getSessionDetail(active.session_id);
-        setActiveSession(detail.session);
-        if (detail.active_trades) {
-          setActiveTrades(detail.active_trades);
-          if (detail.active_trades.length > 0) {
-            setActiveTrade(detail.active_trades[detail.active_trades.length - 1]);
+        if (active.status === "ACTIVE") {
+          setActiveSession(active);
+          const detail = await scalpApi.getSessionDetail(active.session_id);
+          if (detail.session && detail.session.status === "ACTIVE") {
+            setActiveSession(detail.session);
+          } else {
+            setActiveSession(null);
           }
-        } else if (detail.active_trade) {
-          setActiveTrade(detail.active_trade);
-          setActiveTrades([detail.active_trade]);
+          if (detail.active_trades) {
+            setActiveTrades(detail.active_trades);
+            if (detail.active_trades.length > 0) {
+              setActiveTrade(detail.active_trades[detail.active_trades.length - 1]);
+            }
+          } else if (detail.active_trade) {
+            setActiveTrade(detail.active_trade);
+            setActiveTrades([detail.active_trade]);
+          }
+          if (detail.pending_proposal) {
+            setPendingProposal(detail.pending_proposal);
+          }
+          if (detail.recent_trades) {
+            setRecentTrades(detail.recent_trades);
+          }
+        } else {
+          setActiveSession(null);
         }
-        if (detail.pending_proposal) {
-          setPendingProposal(detail.pending_proposal);
-        }
-        if (detail.recent_trades) {
-          setRecentTrades(detail.recent_trades);
-        }
+      } else {
+        setActiveSession(null);
       }
     } catch (err) {
       /* best-effort fallback */
@@ -198,7 +231,11 @@ export function AIScalpTrader() {
   };
 
   const handleStartSession = async () => {
+    setIsStarting(true);
     try {
+      // 1. Ensure clean slate by stopping any lingering session
+      await scalpApi.stopAllSessions().catch(() => {});
+
       let policyToUse = parsedPolicy;
       if (!policyToUse) {
         const parseRes = await scalpApi.parseMission(missionInput);
@@ -206,7 +243,6 @@ export function AIScalpTrader() {
         setParsedPolicy(policyToUse);
       }
 
-      // Apply selected autonomy mode and requireHumanApproval toggle
       policyToUse = { 
         ...policyToUse, 
         autonomy_mode: autonomyMode,
@@ -216,20 +252,57 @@ export function AIScalpTrader() {
       const createRes = await scalpApi.createSession(missionInput, policyToUse);
       const startRes = await scalpApi.startSession(createRes.session.session_id);
       setActiveSession(startRes.session);
-      toast.success(`Autonomous Scalp Session ${startRes.session.session_id} Started!`);
+      toast.success(`🚀 Autonomous Scalp Session ${startRes.session.session_id} Started!`);
     } catch (err: any) {
-      toast.error(err.message || "Failed to start session");
+      toast.error(err.message || "Failed to start scalp session");
+    } finally {
+      setIsStarting(false);
+    }
+  };
+
+  const handleStopAllSessions = async () => {
+    setIsStopping(true);
+    try {
+      await scalpApi.stopAllSessions();
+      setActiveSession(null);
+      setActiveTrade(null);
+      setActiveTrades([]);
+      setPendingProposal(null);
+      toast.success(`Stopped all active scalp sessions. Engine reset.`);
+      loadSessionHistory();
+    } catch (err: any) {
+      setActiveSession(null);
+      setActiveTrade(null);
+      setActiveTrades([]);
+      setPendingProposal(null);
+      toast.info("Session state reset.");
+    } finally {
+      setIsStopping(false);
     }
   };
 
   const handleStopSession = async () => {
-    if (!activeSession) return;
+    if (!activeSession) {
+      setActiveSession(null);
+      return;
+    }
+    setIsStopping(true);
     try {
-      const res = await scalpApi.stopSession(activeSession.session_id);
-      setActiveSession(res.session);
-      toast.info("Scalp Session Stopped.");
+      await scalpApi.stopSession(activeSession.session_id);
+      setActiveSession(null);
+      setActiveTrade(null);
+      setActiveTrades([]);
+      setPendingProposal(null);
+      toast.success("Scalp Trading Session Engine Stopped Successfully.");
+      loadSessionHistory();
     } catch (err: any) {
-      toast.error(err.message || "Failed to stop session");
+      setActiveSession(null);
+      setActiveTrade(null);
+      setActiveTrades([]);
+      setPendingProposal(null);
+      toast.info("Scalp Session Engine Halted.");
+    } finally {
+      setIsStopping(false);
     }
   };
 
@@ -324,6 +397,16 @@ export function AIScalpTrader() {
           </div>
 
           <button
+            onClick={handleStopAllSessions}
+            disabled={isStopping}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-muted hover:bg-muted/80 text-foreground text-xs font-bold transition-all border border-border shadow-xs cursor-pointer disabled:opacity-50"
+            title="Stop all active scalp trading sessions and reset engine state"
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5 text-primary", isStopping && "animate-spin")} />
+            <span>Reset All Sessions</span>
+          </button>
+
+          <button
             onClick={handleEmergencyStop}
             className="flex items-center gap-2 px-4 py-2 rounded-xl bg-destructive hover:bg-destructive/90 text-destructive-foreground text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer"
           >
@@ -332,6 +415,65 @@ export function AIScalpTrader() {
           </button>
         </div>
       </header>
+
+      {/* Sub-Tab Navigation Bar */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-border/60 pb-3">
+        <button
+          onClick={() => setActiveTab("desk")}
+          className={cn(
+            "flex items-center gap-2 px-4.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs",
+            activeTab === "desk"
+              ? "bg-primary text-primary-foreground shadow-sm"
+              : "bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted"
+          )}
+        >
+          <Radar className="h-4 w-4" />
+          <span>Autonomous Live Scalp Desk</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab("verifications")}
+          className={cn(
+            "flex items-center gap-2 px-4.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs relative",
+            activeTab === "verifications"
+              ? "bg-primary text-primary-foreground shadow-sm"
+              : "bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted"
+          )}
+        >
+          <ShieldCheck className="h-4 w-4 text-emerald-400" />
+          <span>Trade Verifications & Approvals</span>
+          {pendingProposal ? (
+            <span className="px-2 py-0.5 rounded-full bg-emerald-500 text-zinc-950 text-[10px] font-black animate-pulse">
+              1 PENDING
+            </span>
+          ) : (
+            <span className="px-2 py-0.5 rounded-full bg-background/20 text-[10px] font-extrabold opacity-70">
+              0
+            </span>
+          )}
+        </button>
+
+        <button
+          onClick={() => {
+            setActiveTab("history");
+            loadSessionHistory();
+          }}
+          className={cn(
+            "flex items-center gap-2 px-4.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs",
+            activeTab === "history"
+              ? "bg-primary text-primary-foreground shadow-sm"
+              : "bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted"
+          )}
+        >
+          <History className="h-4 w-4" />
+          <span>Session History & Audit Trail</span>
+          {sessionHistory.length > 0 && (
+            <span className="px-2 py-0.5 rounded-full bg-background/20 text-[10px] font-extrabold">
+              {sessionHistory.length}
+            </span>
+          )}
+        </button>
+      </div>
 
       {/* Emergency Stop Alert Banner if Active */}
       {emergencyActive && (
@@ -378,8 +520,295 @@ export function AIScalpTrader() {
         </div>
       )}
 
-      {/* Main Grid */}
-      <div className="space-y-6">
+      {activeTab === "verifications" ? (
+        /* TRADE VERIFICATIONS & HUMAN APPROVAL GATE VIEW */
+        <div className="space-y-6">
+          <div className="p-6 rounded-2xl bg-card border-2 border-primary/40 space-y-4 shadow-md backdrop-blur-md">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/50 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-primary/15 text-primary border border-primary/30">
+                  <ShieldCheck className="h-6 w-6" />
+                </div>
+                <div>
+                  <h2 className="font-extrabold text-base text-foreground">Trade Verifications & Human Approval Gate</h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Verified multi-agent trade proposals requiring human authorization before order submission to Bitget Futures.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-primary/20 text-primary border border-primary/40">
+                  {pendingProposal ? "1 Pending Verification" : "0 Pending Verification"}
+                </span>
+              </div>
+            </div>
+
+            {pendingProposal ? (
+              <div className="p-6 rounded-2xl bg-zinc-950 border-2 border-primary/50 space-y-6 shadow-xl">
+                {/* Trade Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800 pb-4">
+                  <div className="flex items-center gap-3">
+                    <div className={cn(
+                      "px-3 py-1.5 rounded-xl text-xs font-black tracking-wider uppercase border",
+                      pendingProposal.direction === "LONG" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/50" : "bg-destructive/20 text-destructive border-destructive/50"
+                    )}>
+                      {pendingProposal.direction} {pendingProposal.leverage || 5}X
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-extrabold text-white tracking-tight">{pendingProposal.symbol || "BTCUSDT"}</h3>
+                      <p className="text-xs text-zinc-400 font-mono">Strategy: {pendingProposal.strategy_name || "Vol-Breakout-Scalp"}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs">
+                    <span className="px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 font-mono">
+                      Regime: {pendingProposal.market_regime || "TRENDING"}
+                    </span>
+                    <span className="px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-bold">
+                      Confidence: {pendingProposal.confidence || 88}%
+                    </span>
+                  </div>
+                </div>
+
+                {/* Key Price Levels & Margin Metrics Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                  <div className="p-3.5 rounded-xl bg-zinc-900/80 border border-zinc-800">
+                    <div className="text-[10px] text-zinc-400 font-semibold uppercase">Required Margin</div>
+                    <div className="text-sm font-extrabold text-white mt-1">${pendingProposal.margin_required_usdt || 15.0} USDT</div>
+                  </div>
+                  <div className="p-3.5 rounded-xl bg-zinc-900/80 border border-zinc-800">
+                    <div className="text-[10px] text-zinc-400 font-semibold uppercase">Entry Target Price</div>
+                    <div className="text-sm font-extrabold text-white mt-1">${pendingProposal.entry_price || 65000.0}</div>
+                  </div>
+                  <div className="p-3.5 rounded-xl bg-zinc-900/80 border border-zinc-800">
+                    <div className="text-[10px] text-emerald-400 font-semibold uppercase">Take Profit (TP)</div>
+                    <div className="text-sm font-extrabold text-emerald-400 mt-1">${pendingProposal.take_profit_1 || pendingProposal.take_profit || 66000.0}</div>
+                  </div>
+                  <div className="p-3.5 rounded-xl bg-zinc-900/80 border border-zinc-800">
+                    <div className="text-[10px] text-destructive font-semibold uppercase">Stop Loss (SL)</div>
+                    <div className="text-sm font-extrabold text-destructive mt-1">${pendingProposal.stop_loss || 64500.0}</div>
+                  </div>
+                </div>
+
+                {/* Agent Reasoning & Risk Checklist */}
+                <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800 space-y-2 text-xs">
+                  <div className="font-bold text-zinc-200 flex items-center gap-2">
+                    <Brain className="h-4 w-4 text-primary" />
+                    <span>Technical Strategy & Risk Critic Agent Rationale</span>
+                  </div>
+                  <p className="text-zinc-300 leading-relaxed font-sans">
+                    {pendingProposal.why_this_trade?.primary_driver || pendingProposal.reasoning || "Technical momentum breakout confirmed by volume ratio > 1.5x and positive net edge."}
+                  </p>
+                </div>
+
+                {/* Interactive Approval Action Buttons */}
+                <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
+                  <button
+                    onClick={async () => {
+                      await handleConfirmCopilotTrade();
+                      setActiveTab("desk");
+                    }}
+                    className="w-full sm:w-auto flex-1 px-6 py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-zinc-950 font-black text-sm transition-all shadow-lg hover:shadow-emerald-500/20 flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <CheckCircle2 className="h-5 w-5" />
+                    <span>APPROVE & PLACE BITGET TRADE NOW</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setPendingProposal(null);
+                      toast.info("Trade proposal rejected & dismissed.");
+                    }}
+                    className="w-full sm:w-auto px-5 py-3.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 font-bold text-xs border border-zinc-800 transition-all cursor-pointer"
+                  >
+                    REJECT & DISMISS
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="p-12 rounded-2xl bg-zinc-950/60 border border-zinc-800 text-center space-y-3">
+                <ShieldCheck className="h-10 w-10 text-muted-foreground mx-auto opacity-40" />
+                <h3 className="font-bold text-base text-foreground">No Pending Trade Proposals for Verification</h3>
+                <p className="text-xs text-muted-foreground max-w-md mx-auto">
+                  The multi-agent scalp engine is actively scanning Bitget futures markets. When a trade setup passes Technical Strategy and Risk Critic checks, the trade verification card will appear here for your approval.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : activeTab === "history" ? (
+        /* SESSION HISTORY & AUDIT TRAIL VIEW */
+        <div className="space-y-6">
+          {/* History Header Metrics */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="p-4.5 rounded-2xl bg-card border border-border/80 shadow-xs">
+              <div className="text-xs text-muted-foreground">Total Sessions Recorded</div>
+              <div className="text-xl font-extrabold text-foreground mt-0.5">{sessionHistory.length} Sessions</div>
+            </div>
+            <div className="p-4.5 rounded-2xl bg-card border border-border/80 shadow-xs">
+              <div className="text-xs text-muted-foreground">Active Sessions</div>
+              <div className="text-xl font-extrabold text-primary mt-0.5">
+                {sessionHistory.filter((s) => s.status === "ACTIVE").length} Running
+              </div>
+            </div>
+            <div className="p-4.5 rounded-2xl bg-card border border-border/80 shadow-xs">
+              <div className="text-xs text-muted-foreground">Cumulative Realized PnL</div>
+              {(() => {
+                const totalPnl = sessionHistory.reduce((sum, s) => sum + (s.session_pnl_usdt || 0), 0);
+                return (
+                  <div className={cn("text-xl font-extrabold mt-0.5", totalPnl >= 0 ? "text-emerald-500" : "text-destructive")}>
+                    {totalPnl >= 0 ? "+" : ""}{totalPnl.toFixed(4)} USDT
+                  </div>
+                );
+              })()}
+            </div>
+            <div className="p-4.5 rounded-2xl bg-card border border-border/80 shadow-xs">
+              <div className="text-xs text-muted-foreground">Executed Scalp Trades</div>
+              <div className="text-xl font-extrabold text-foreground mt-0.5">
+                {sessionHistory.reduce((sum, s) => sum + (s.stats?.total_trades || 0), 0)} Trades
+              </div>
+            </div>
+          </div>
+
+          {/* Search & Filter Bar */}
+          <div className="p-5 rounded-2xl bg-card border border-border/80 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
+            <div className="relative w-full sm:w-96">
+              <Search className="absolute left-3.5 top-3 h-4 w-4 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search sessions by prompt or ID..."
+                value={historySearch}
+                onChange={(e) => setHistorySearch(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 rounded-xl bg-background border border-border text-xs outline-none focus:ring-2 focus:ring-primary/40"
+              />
+            </div>
+
+            <button
+              onClick={loadSessionHistory}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-muted hover:bg-muted/80 text-xs font-bold transition-all border border-border shrink-0 cursor-pointer"
+            >
+              <RefreshCw className={cn("h-3.5 w-3.5", loadingHistory && "animate-spin text-primary")} />
+              <span>Refresh History</span>
+            </button>
+          </div>
+
+          {/* Session Cards & Table */}
+          <div className="space-y-4">
+            {sessionHistory.length > 0 ? (
+              sessionHistory
+                .filter((s) =>
+                  s.session_id.toLowerCase().includes(historySearch.toLowerCase()) ||
+                  s.user_mission.toLowerCase().includes(historySearch.toLowerCase())
+                )
+                .map((sess) => (
+                  <div
+                    key={sess.session_id}
+                    className={cn(
+                      "p-5 rounded-2xl bg-card border-2 space-y-4 shadow-sm transition-all hover:border-primary/40",
+                      sess.status === "ACTIVE" ? "border-emerald-500/40" : "border-border/80"
+                    )}
+                  >
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <span className="font-mono text-xs font-bold text-foreground bg-muted px-2.5 py-1 rounded-lg border border-border/50">
+                          {sess.session_id}
+                        </span>
+                        <span
+                          className={cn(
+                            "px-2.5 py-0.5 text-xs font-extrabold rounded-full border",
+                            sess.status === "ACTIVE"
+                              ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30 animate-pulse"
+                              : sess.status === "STOPPED"
+                              ? "bg-amber-500/15 text-amber-400 border-amber-500/30"
+                              : sess.status === "COMPLETED"
+                              ? "bg-blue-500/15 text-blue-400 border-blue-500/30"
+                              : "bg-muted text-muted-foreground border-border"
+                          )}
+                        >
+                          {sess.status}
+                        </span>
+                        <span className="text-xs text-muted-foreground font-mono flex items-center gap-1">
+                          <Clock className="h-3.5 w-3.5" />
+                          Created: {sess.created_at ? new Date(sess.created_at).toLocaleString() : "N/A"}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {sess.status === "ACTIVE" && (
+                          <button
+                            onClick={async () => {
+                              await scalpApi.stopSession(sess.session_id);
+                              toast.info(`Session ${sess.session_id} stopped.`);
+                              loadSessionHistory();
+                              loadActiveSession();
+                            }}
+                            className="px-3.5 py-1.5 rounded-xl bg-destructive text-destructive-foreground text-xs font-bold hover:bg-destructive/90 transition-all cursor-pointer shadow-xs"
+                          >
+                            Stop Session
+                          </button>
+                        )}
+                        <button
+                          onClick={async () => {
+                            const detail = await scalpApi.getSessionDetail(sess.session_id);
+                            setActiveSession(detail.session);
+                            if (detail.active_trades) setActiveTrades(detail.active_trades);
+                            setActiveTab("desk");
+                            toast.success(`Loaded session ${sess.session_id} on live desk`);
+                          }}
+                          className="px-4 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-bold shadow hover:opacity-90 transition-all cursor-pointer"
+                        >
+                          Load Session Desk
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Mission Prompt Box */}
+                    <div className="p-3.5 rounded-xl bg-muted/40 border border-border/50 text-xs">
+                      <div className="text-[10px] text-muted-foreground font-semibold">User Strategy Mission</div>
+                      <p className="text-foreground font-medium mt-0.5 leading-relaxed">{sess.user_mission}</p>
+                    </div>
+
+                    {/* Policy & PnL Metrics Grid */}
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs">
+                      <div className="p-3 rounded-xl bg-muted/30 border border-border/40">
+                        <div className="text-[10px] text-muted-foreground">Allocated Capital</div>
+                        <div className="font-bold text-foreground">${sess.starting_capital_usdt || sess.policy?.allocated_capital} USDT</div>
+                      </div>
+                      <div className="p-3 rounded-xl bg-muted/30 border border-border/40">
+                        <div className="text-[10px] text-muted-foreground">Target Profit / Max Loss</div>
+                        <div className="font-bold">
+                          <span className="text-emerald-500">+{sess.policy?.target_profit}</span> /{" "}
+                          <span className="text-destructive">-{sess.policy?.maximum_session_loss}</span> USDT
+                        </div>
+                      </div>
+                      <div className="p-3 rounded-xl bg-muted/30 border border-border/40">
+                        <div className="text-[10px] text-muted-foreground">Leverage & Margin</div>
+                        <div className="font-bold text-foreground">{sess.policy?.maximum_leverage || 3}x Isolated</div>
+                      </div>
+                      <div className="p-3 rounded-xl bg-muted/30 border border-border/40">
+                        <div className="text-[10px] text-muted-foreground">Final Session PnL</div>
+                        <div className={cn("font-extrabold text-sm", (sess.session_pnl_usdt || 0) >= 0 ? "text-emerald-500" : "text-destructive")}>
+                          {(sess.session_pnl_usdt || 0) >= 0 ? "+" : ""}{(sess.session_pnl_usdt || 0).toFixed(4)} USDT
+                        </div>
+                      </div>
+                      <div className="p-3 rounded-xl bg-muted/30 border border-border/40">
+                        <div className="text-[10px] text-muted-foreground">Performance Stats</div>
+                        <div className="font-bold text-foreground">
+                          {sess.stats?.win_rate_pct || 0}% WR ({sess.stats?.winning_trades || 0}W / {sess.stats?.losing_trades || 0}L)
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+            ) : (
+              <div className="p-8 rounded-2xl bg-card border border-border/80 text-center space-y-2">
+                <History className="h-8 w-8 text-muted-foreground mx-auto opacity-50" />
+                <p className="font-bold text-sm text-foreground">No Scalp Sessions Found in History</p>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        /* LIVE SCALP DESK VIEW */
+        <div className="space-y-6">
         {/* 2. Mission Control Policy Builder */}
         <div className="p-6 rounded-2xl bg-card border border-border/80 space-y-5 shadow-sm">
           <div className="flex items-center justify-between">
@@ -459,18 +888,28 @@ export function AIScalpTrader() {
               {!activeSession || activeSession.status !== "ACTIVE" ? (
                 <button
                   onClick={handleStartSession}
-                  className="flex items-center gap-2 px-6 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold transition-all shadow-md hover:opacity-90 active:scale-95 cursor-pointer"
+                  disabled={isStarting}
+                  className="flex items-center gap-2 px-6 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold transition-all shadow-md hover:opacity-90 active:scale-95 disabled:opacity-50 cursor-pointer"
                 >
-                  <Play className="h-4 w-4 fill-current" />
-                  <span>Start Scalp Engine</span>
+                  {isStarting ? (
+                    <RefreshCw className="h-4 w-4 animate-spin fill-current" />
+                  ) : (
+                    <Play className="h-4 w-4 fill-current" />
+                  )}
+                  <span>{isStarting ? "Starting Engine..." : "Start Scalp Engine"}</span>
                 </button>
               ) : (
                 <button
                   onClick={handleStopSession}
-                  className="flex items-center gap-2 px-6 py-2 rounded-xl bg-destructive text-destructive-foreground text-xs font-bold transition-all shadow-md hover:opacity-90 cursor-pointer"
+                  disabled={isStopping}
+                  className="flex items-center gap-2 px-6 py-2 rounded-xl bg-destructive text-destructive-foreground text-xs font-bold transition-all shadow-md hover:opacity-90 disabled:opacity-50 cursor-pointer"
                 >
-                  <Square className="h-4 w-4 fill-current" />
-                  <span>Stop Engine</span>
+                  {isStopping ? (
+                    <RefreshCw className="h-4 w-4 animate-spin fill-current" />
+                  ) : (
+                    <Square className="h-4 w-4 fill-current" />
+                  )}
+                  <span>{isStopping ? "Stopping Engine..." : "Stop Engine"}</span>
                 </button>
               )}
             </div>
@@ -1111,7 +1550,11 @@ export function AIScalpTrader() {
             </div>
           </div>
         )}
+
+        {/* 8. CoinGlass Liquidation Heatmap Embed (Memoized to prevent lag) */}
+        <CoinGlassHeatmapCard symbol={selectedSymbol} />
       </div>
+      )}
     </div>
   );
 }

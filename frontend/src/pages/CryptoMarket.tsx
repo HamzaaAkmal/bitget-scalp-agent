@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { CoinGlassHeatmapCard } from "@/components/common/CoinGlassHeatmapCard";
 
 import {
   Activity,
@@ -521,6 +522,11 @@ export function CryptoMarket() {
               </section>
             )}
           </aside>
+        </section>
+
+        {/* CoinGlass Liquidation Heatmap Embed (Memoized to prevent lag) */}
+        <section className="mt-6">
+          <CoinGlassHeatmapCard symbol={symbol} />
         </section>
 
 
