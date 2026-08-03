@@ -69,6 +69,13 @@ def register_scalp_routes(app: FastAPI) -> None:
         latest_trade = mgr.store.get_latest_trade()
         return {"status": "ok", "active_sessions": sessions, "latest_trade": latest_trade}
 
+    @app.get("/scalp/sessions/history", dependencies=deps)
+    async def list_session_history() -> Dict[str, Any]:
+        mgr = get_session_manager()
+        all_sessions = mgr.list_all_sessions()
+        dumped = [s.model_dump() for s in sorted(all_sessions, key=lambda x: x.created_at, reverse=True)]
+        return {"status": "ok", "total": len(dumped), "sessions": dumped}
+
     @app.post("/scalp/sessions", dependencies=deps)
     async def create_session(body: CreateSessionRequest) -> Dict[str, Any]:
         session = get_session_manager().create_session(body.user_mission, body.custom_policy)
