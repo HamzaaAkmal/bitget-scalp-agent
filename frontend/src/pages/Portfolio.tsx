@@ -127,17 +127,27 @@ function bitgetPositionWsUrl(category: string): string {
   return `${protocol}//${window.location.host}/bitget/ws/positions?${q.toString()}`;
 }
 
+import { usePortfolioStore } from "@/store/portfolioStore";
+
 export function Portfolio() {
-  const [category, setCategory] = useState<(typeof CATEGORIES)[number]["value"]>("USDT-FUTURES");
-  const [loading, setLoading] = useState(true);
-  
-  // Data states
-  const [accountEnvelope, setAccountEnvelope] = useState<BitgetMcpEnvelope | null>(null);
-  const [accountRows, setAccountRows] = useState<Record<string, unknown>[]>([]);
-  const [positionRows, setPositionRows] = useState<Record<string, unknown>[]>([]);
-  const [orderRows, setOrderRows] = useState<Record<string, unknown>[]>([]);
-  const [fillRows, setFillRows] = useState<Record<string, unknown>[]>([]);
-  const [strategyRows, setStrategyRows] = useState<Record<string, unknown>[]>([]);
+  const {
+    category,
+    setCategory,
+    loading,
+    setLoading,
+    accountEnvelope,
+    setAccountEnvelope,
+    accountRows,
+    setAccountRows,
+    positionRows,
+    setPositionRows,
+    orderRows,
+    setOrderRows,
+    fillRows,
+    setFillRows,
+    strategyRows,
+    setStrategyRows,
+  } = usePortfolioStore();
 
   // Action states
   const [actionLoading, setActionLoading] = useState("");
@@ -149,13 +159,14 @@ export function Portfolio() {
   } | null>(null);
 
   const loadData = (showLoading = false) => {
-    if (showLoading) setLoading(true);
+    // Only show loading state if we have absolutely no data yet
+    if (showLoading && accountRows.length === 0) setLoading(true);
 
     let activeRequests = 0;
     const increment = () => activeRequests++;
     const decrement = () => {
       activeRequests--;
-      if (activeRequests <= 0 && showLoading) {
+      if (activeRequests <= 0 && loading) {
         setLoading(false);
       }
     };

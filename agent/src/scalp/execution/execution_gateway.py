@@ -145,13 +145,17 @@ class ExecutionGateway:
                         "qty": str(fill_qty),
                         "orderType": "market",
                         "confirm": True,
+                    },
                 )
                 status = str(order_res.get("status", "")).lower()
                 if status != "ok":
                     msg = order_res.get("error") or order_res.get("message") or str(order_res)
-                    if isinstance(msg, dict) and "message" in msg:
-                        msg = msg["message"]
-                    raise RuntimeError(f"Bitget MCP order failed: {msg}")
+                    msg_str = msg["message"] if isinstance(msg, dict) and "message" in msg else str(msg)
+                    
+                    if "25227" in msg_str or "No position available to close" in msg_str:
+                        logger.warning(f"Position {symbol} is already closed on the exchange. Marking as closed locally.")
+                    else:
+                        raise RuntimeError(f"Bitget MCP order failed: {msg_str}")
                 exit_price = float(trade_data.get("current_price") or trade_data.get("entry_price", 0.0))
             except Exception as exc:
                 logger.error(f"Close market order exception for {symbol}: {exc}")

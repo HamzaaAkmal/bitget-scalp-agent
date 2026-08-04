@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { CoinGlassHeatmapCard } from "@/components/common/CoinGlassHeatmapCard";
 import {
   Activity,
@@ -22,13 +22,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import {
-  scalpApi,
-  type ScalpSessionData,
-  type SessionPolicy,
-  type ScalpCandidate,
-  type ScalpTrade,
-} from "@/lib/scalp-api";
+import { scalpApi, type ScalpTrade } from "@/lib/scalp-api";
 
 const PRESET_MISSIONS = [
   {
@@ -53,38 +47,37 @@ function formatLargeNumber(val?: number): string {
   return val.toFixed(2);
 }
 
+import { useScalpStore } from "@/store/scalpStore";
+
 export function AIScalpTrader() {
-  const [missionInput, setMissionInput] = useState(PRESET_MISSIONS[0].text);
-  const [parsing, setParsing] = useState(false);
-  const [parsedPolicy, setParsedPolicy] = useState<SessionPolicy | null>(null);
-  const [activeSession, setActiveSession] = useState<ScalpSessionData | null>(null);
-  const [activeTrade, setActiveTrade] = useState<ScalpTrade | null>(null);
-  const [activeTrades, setActiveTrades] = useState<ScalpTrade[]>([]);
-  const [pendingProposal, setPendingProposal] = useState<any>(null);
-  const [requireApproval, setRequireApproval] = useState(true);
-  const [isClosing, setIsClosing] = useState(false);
-  const [isStopping, setIsStopping] = useState(false);
-  const [isStarting, setIsStarting] = useState(false);
-  const [recentTrades, setRecentTrades] = useState<ScalpTrade[]>([]);
-  const [candidates, setCandidates] = useState<ScalpCandidate[]>([]);
-  const [funnelCounts, setFunnelCounts] = useState({
-    all_markets: 126,
-    passed_liquidity: 18,
-    passed_technical: 4,
-    top_candidates: 2,
-  });
-  const [selectedSymbol, setSelectedSymbol] = useState<string>("BTCUSDT");
-  const [symbolDetail, setSymbolDetail] = useState<any>(null);
-  const [regimeInfo, setRegimeInfo] = useState<any>(null);
-  const [loadingCandidates, setLoadingCandidates] = useState(true);
-  const [emergencyActive, setEmergencyActive] = useState(false);
-  const [agentLogs, setAgentLogs] = useState<Array<{ timestamp: string; session_id?: string; agent: string; level: string; action: string; message: string; details?: any }>>([]);
-  const [selectedAgentFilter, setSelectedAgentFilter] = useState<string>("ALL");
-  const [autonomyMode, setAutonomyMode] = useState<"copilot" | "guarded_autopilot" | "full_autonomous">("guarded_autopilot");
-  const [activeTab, setActiveTab] = useState<"desk" | "verifications" | "history">("desk");
-  const [sessionHistory, setSessionHistory] = useState<ScalpSessionData[]>([]);
-  const [historySearch, setHistorySearch] = useState("");
-  const [loadingHistory, setLoadingHistory] = useState(false);
+  const {
+    missionInput, setMissionInput,
+    parsing, setParsing,
+    parsedPolicy, setParsedPolicy,
+    activeSession, setActiveSession,
+    activeTrade, setActiveTrade,
+    activeTrades, setActiveTrades,
+    pendingProposal, setPendingProposal,
+    requireApproval, setRequireApproval,
+    isClosing, setIsClosing,
+    isStopping, setIsStopping,
+    isStarting, setIsStarting,
+    recentTrades, setRecentTrades,
+    candidates, setCandidates,
+    funnelCounts, setFunnelCounts,
+    selectedSymbol, setSelectedSymbol,
+    symbolDetail, setSymbolDetail,
+    regimeInfo, setRegimeInfo,
+    loadingCandidates, setLoadingCandidates,
+    emergencyActive, setEmergencyActive,
+    agentLogs, setAgentLogs,
+    selectedAgentFilter, setSelectedAgentFilter,
+    autonomyMode, setAutonomyMode,
+    activeTab, setActiveTab,
+    sessionHistory, setSessionHistory,
+    historySearch, setHistorySearch,
+    loadingHistory, setLoadingHistory,
+  } = useScalpStore();
 
   const loadSessionHistory = async () => {
     setLoadingHistory(true);
@@ -100,6 +93,10 @@ export function AIScalpTrader() {
 
   // Load active sessions & market candidates on mount
   useEffect(() => {
+    // Only show loaders if we have no cached data
+    if (candidates.length === 0) setLoadingCandidates(true);
+    if (sessionHistory.length === 0) setLoadingHistory(true);
+
     loadActiveSession();
     loadMarketData();
     loadSessionHistory();
