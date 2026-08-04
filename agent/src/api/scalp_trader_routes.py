@@ -453,6 +453,7 @@ def register_scalp_routes(app: FastAPI) -> None:
                 "take_profit_price": proposal_data.get("take_profit_1", 63000.0),
                 "stop_loss_price": proposal_data.get("stop_loss", 62000.0),
                 "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                "proposal": proposal_data,
             }
             from src.scalp.models.scalp_trade import ScalpTrade
             trade_obj = ScalpTrade(**synth_trade)

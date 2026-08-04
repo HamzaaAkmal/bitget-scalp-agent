@@ -326,5 +326,5 @@ def register_bitget_routes(app: FastAPI) -> None:
                     }
                 )
                 await asyncio.sleep(interval_s)
-        except WebSocketDisconnect:
+        except (WebSocketDisconnect, RuntimeError):
             return

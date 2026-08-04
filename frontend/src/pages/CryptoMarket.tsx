@@ -34,7 +34,6 @@ type WsState = "connecting" | "live" | "offline";
 
 const CATEGORIES = [
   { value: "USDT-FUTURES", label: "Futures", instType: "usdt-futures" },
-  { value: "SPOT", label: "Spot", instType: "spot" },
 ] as const;
 const INTERVALS = [
   { value: "1m", label: "1m", seconds: 60 },
@@ -294,7 +293,7 @@ export function CryptoMarket() {
     const next = normalizeSymbol(candidate.symbol);
     setSymbolInput(next);
     setSymbol(next);
-    if (candidate.category === "SPOT" || candidate.category === "USDT-FUTURES") {
+    if (candidate.category === "USDT-FUTURES") {
       setCategory(candidate.category);
     }
     setSymbolFocused(false);
@@ -457,7 +456,7 @@ export function CryptoMarket() {
         </div>
 
         <section className="grid gap-3 md:grid-cols-4 xl:grid-cols-8">
-          <Metric label="Symbol" value={`${symbol} ${category === "SPOT" ? "Spot" : "Perp"}`} icon={<Target className="h-4 w-4 text-primary" />} />
+          <Metric label="Symbol" value={`${symbol} Perp`} icon={<Target className="h-4 w-4 text-primary" />} />
           <Metric label="Last price" value={lastPrice === null ? "Loading" : `$${formatPrice(lastPrice)}`} />
           <Metric
             label="Feed"

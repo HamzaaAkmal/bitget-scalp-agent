@@ -4,7 +4,6 @@ import {
   Briefcase,
   CheckCircle2,
   Clock,
-  Coins,
   Gauge,
   Layers,
   Loader2,
@@ -17,7 +16,6 @@ import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { api, type BitgetMcpEnvelope } from "@/lib/api";
 
 const CATEGORIES = [
-  { value: "SPOT", label: "Spot Account" },
   { value: "USDT-FUTURES", label: "Futures Account" },
 ] as const;
 
@@ -136,7 +134,6 @@ export function Portfolio() {
   // Data states
   const [accountEnvelope, setAccountEnvelope] = useState<BitgetMcpEnvelope | null>(null);
   const [accountRows, setAccountRows] = useState<Record<string, unknown>[]>([]);
-  const [spotAccountRows, setSpotAccountRows] = useState<Record<string, unknown>[]>([]);
   const [positionRows, setPositionRows] = useState<Record<string, unknown>[]>([]);
   const [orderRows, setOrderRows] = useState<Record<string, unknown>[]>([]);
   const [fillRows, setFillRows] = useState<Record<string, unknown>[]>([]);
@@ -184,30 +181,17 @@ export function Portfolio() {
       setFillRows(payloadRows(fills));
     }).catch(console.error).finally(decrement);
 
-    if (category !== "SPOT") {
-      // Positions
-      increment();
-      api.getBitgetPositions({ category }).then(positions => {
-        setPositionRows(payloadRows(positions));
-      }).catch(console.error).finally(decrement);
-
-      // Strategy
-      increment();
-      api.getBitgetStrategyOrders({ category }).then(strategy => {
-        setStrategyRows(payloadRows(strategy));
-      }).catch(console.error).finally(decrement);
-    } else {
-      setPositionRows([]);
-      setStrategyRows([]);
-    }
-
-    // Spot specific
+    // Positions
     increment();
-    api.getBitgetAccount({ category: "SPOT" }).then(spot => {
-      setSpotAccountRows(payloadRows(spot));
-    }).catch(() => {
-      // Spot might fail if unsupported, ignore
-    }).finally(decrement);
+    api.getBitgetPositions({ category }).then(positions => {
+      setPositionRows(payloadRows(positions));
+    }).catch(console.error).finally(decrement);
+
+    // Strategy
+    increment();
+    api.getBitgetStrategyOrders({ category }).then(strategy => {
+      setStrategyRows(payloadRows(strategy));
+    }).catch(console.error).finally(decrement);
   };
 
   useEffect(() => {
@@ -217,7 +201,6 @@ export function Portfolio() {
   }, [category]);
 
   useEffect(() => {
-    if (category === "SPOT") return;
     let cancelled = false;
     let socket: WebSocket | null = null;
     let reconnectTimer: number;
@@ -256,7 +239,6 @@ export function Portfolio() {
   }, [category]);
 
   // Derived values for Portfolio Overview
-  const spotBalance = useMemo(() => sumRows(spotAccountRows, "usdtEquity", "usdValue", "equity", "available", "total"), [spotAccountRows]);
   const futuresBalance = useMemo(() => {
     const parentObj = payloadObject(accountEnvelope);
     if (parentObj.accountEquity || parentObj.usdtEquity) {
@@ -264,7 +246,7 @@ export function Portfolio() {
     }
     return sumRows(accountRows, "usdtEquity", "usdValue", "equity", "available", "total");
   }, [accountEnvelope, accountRows]);
-  const totalValue = spotBalance + futuresBalance;
+  const totalValue = futuresBalance;
   const livePnl = useMemo(() => sumRows(positionRows, "unrealizedPL", "unrealisedPnl", "upl", "pnl", "unrealizedPnl"), [positionRows]);
   
   const handleAction = (title: string, description: string, action: () => Promise<BitgetMcpEnvelope>) => {
@@ -337,63 +319,14 @@ export function Portfolio() {
         </div>
 
         {/* Portfolio Overview */}
-        <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <section className="grid gap-3 md:grid-cols-3">
           <Metric loading={loading} label="Total Portfolio Value" value={formatMoney(totalValue)} icon={<Briefcase className="h-4 w-4 text-primary" />} />
-          <Metric loading={loading} label="Spot Wallet" value={formatMoney(spotBalance)} icon={<Coins className="h-4 w-4 text-info" />} />
           <Metric loading={loading} label="Futures Wallet" value={formatMoney(futuresBalance)} icon={<Layers className="h-4 w-4 text-warning" />} />
           <Metric loading={loading} label="Unrealized PnL (Futures)" value={formatSignedMoney(livePnl)} icon={<TrendingUp className={`h-4 w-4 ${livePnl >= 0 ? "text-success" : "text-destructive"}`} />} />
         </section>
 
-        {category === "SPOT" ? (
-          <section className="rounded-md border bg-card p-4">
-            <div className="flex items-center gap-2 text-sm font-semibold mb-4">
-              <Coins className="h-4 w-4 text-info" />
-              Spot Assets
-            </div>
-            {loading && spotAccountRows.length === 0 ? (
-              <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-                {[1, 2, 3, 4].map(i => (
-                  <div key={i} className="rounded-md border bg-background p-3 animate-pulse">
-                    <div className="h-4 w-16 bg-muted/60 rounded mb-3" />
-                    <div className="space-y-2">
-                      <div className="h-3 bg-muted/60 rounded w-full" />
-                      <div className="h-3 bg-muted/60 rounded w-full" />
-                      <div className="h-3 bg-muted/60 rounded w-full mt-3" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : spotAccountRows.length > 0 ? (
-              <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-                {spotAccountRows.map((row, idx) => (
-                  <div key={idx} className="rounded-md border bg-background p-3">
-                    <div className="font-semibold text-sm mb-2">{String(row.coin || row.currency || "Unknown")}</div>
-                    <div className="space-y-1 text-xs text-muted-foreground">
-                      <div className="flex justify-between">
-                        <span>Available:</span>
-                        <span className="text-foreground">{formatCompactNumber(Number(row.available || 0))}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Frozen:</span>
-                        <span className="text-foreground">{formatCompactNumber(Number(row.frozen || row.locked || 0))}</span>
-                      </div>
-                      <div className="flex justify-between border-t pt-1 mt-1">
-                        <span>Est. USD:</span>
-                        <span className="text-foreground font-medium">{formatMoney(rowNumber(row, "usdtEquity", "usdValue", "equity", "total"))}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
-                No spot assets found
-              </div>
-            )}
-          </section>
-        ) : (
-          <div className="flex flex-col gap-6">
-            {/* Futures Account Overview */}
+        <div className="flex flex-col gap-6">
+          {/* Futures Account Overview */}
             <section className="rounded-md border bg-card p-4">
                <div className="flex items-center gap-2 text-sm font-semibold mb-4">
                 <Gauge className="h-4 w-4 text-warning" />
@@ -659,7 +592,6 @@ export function Portfolio() {
               </div>
             </section>
           </div>
-        )}
       </div>
 
       <ConfirmDialog
