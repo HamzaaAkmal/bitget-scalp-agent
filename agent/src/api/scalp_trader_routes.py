@@ -50,7 +50,7 @@ def register_scalp_routes(app: FastAPI) -> None:
     deps = [Depends(require_auth)] if require_auth else []
 
     @app.post("/scalp/sessions/parse", dependencies=deps)
-    async def parse_mission(body: ParseMissionRequest) -> Dict[str, Any]:
+    def parse_mission(body: ParseMissionRequest) -> Dict[str, Any]:
         policy = parse_session_mission(body.user_mission)
         return {
             "status": "ok",
@@ -60,7 +60,7 @@ def register_scalp_routes(app: FastAPI) -> None:
         }
 
     @app.get("/scalp/sessions", dependencies=deps)
-    async def list_sessions() -> Dict[str, Any]:
+    def list_sessions() -> Dict[str, Any]:
         mgr = get_session_manager()
         active_ids = mgr.list_active_sessions()
         active_sessions = []
@@ -72,19 +72,19 @@ def register_scalp_routes(app: FastAPI) -> None:
         return {"status": "ok", "active_sessions": active_sessions, "latest_trade": latest_trade}
 
     @app.get("/scalp/sessions/history", dependencies=deps)
-    async def list_session_history() -> Dict[str, Any]:
+    def list_session_history() -> Dict[str, Any]:
         mgr = get_session_manager()
         all_sessions = mgr.list_all_sessions()
         dumped = [s.model_dump() for s in sorted(all_sessions, key=lambda x: x.created_at, reverse=True)]
         return {"status": "ok", "total": len(dumped), "sessions": dumped}
 
     @app.post("/scalp/sessions", dependencies=deps)
-    async def create_session(body: CreateSessionRequest) -> Dict[str, Any]:
+    def create_session(body: CreateSessionRequest) -> Dict[str, Any]:
         session = get_session_manager().create_session(body.user_mission, body.custom_policy)
         return {"status": "ok", "session": session.model_dump()}
 
     @app.post("/scalp/sessions/{session_id}/start", dependencies=deps)
-    async def start_session(session_id: str) -> Dict[str, Any]:
+    def start_session(session_id: str) -> Dict[str, Any]:
         try:
             session = get_session_manager().start_session(session_id)
             return {"status": "ok", "session": session.model_dump()}
@@ -92,7 +92,7 @@ def register_scalp_routes(app: FastAPI) -> None:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.post("/scalp/sessions/stop-all", dependencies=deps)
-    async def stop_all_sessions() -> Dict[str, Any]:
+    def stop_all_sessions() -> Dict[str, Any]:
         mgr = get_session_manager()
         all_s = mgr.store.list_all_sessions()
         stopped_count = 0
@@ -104,7 +104,7 @@ def register_scalp_routes(app: FastAPI) -> None:
         return {"status": "ok", "message": f"Successfully stopped {stopped_count} sessions.", "stopped_count": stopped_count}
 
     @app.post("/scalp/sessions/{session_id}/stop", dependencies=deps)
-    async def stop_session(session_id: str) -> Dict[str, Any]:
+    def stop_session(session_id: str) -> Dict[str, Any]:
         try:
             session = get_session_manager().stop_session(session_id, reason="User requested stop")
             return {"status": "ok", "session": session.model_dump()}
@@ -112,7 +112,7 @@ def register_scalp_routes(app: FastAPI) -> None:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.get("/scalp/sessions/{session_id}", dependencies=deps)
-    async def get_session_detail(session_id: str) -> Dict[str, Any]:
+    def get_session_detail(session_id: str) -> Dict[str, Any]:
         session = get_session_manager().get_session(session_id)
         if not session:
             raise HTTPException(status_code=404, detail="Session not found")
@@ -241,7 +241,7 @@ def register_scalp_routes(app: FastAPI) -> None:
         }
 
     @app.get("/scalp/sessions/{session_id}/logs", dependencies=deps)
-    async def get_session_logs(session_id: str, limit: int = 50) -> Dict[str, Any]:
+    def get_session_logs(session_id: str, limit: int = 50) -> Dict[str, Any]:
         mgr = get_session_manager()
         logs = mgr.get_agent_logs(session_id, limit=limit)
         return {
@@ -251,13 +251,13 @@ def register_scalp_routes(app: FastAPI) -> None:
         }
 
     @app.get("/scalp/sessions/{session_id}/events", dependencies=deps)
-    async def stream_session_events(session_id: str):
+    def stream_session_events(session_id: str):
         from fastapi.responses import StreamingResponse
         from src.scalp.streaming.scalp_event_stream import scalp_event_generator
         return StreamingResponse(scalp_event_generator(session_id), media_type="text/event-stream")
 
     @app.post("/scalp/sessions/{session_id}/pause", dependencies=deps)
-    async def pause_session(session_id: str) -> Dict[str, Any]:
+    def pause_session(session_id: str) -> Dict[str, Any]:
         mgr = get_session_manager()
         session = mgr.get_session(session_id)
         if not session:
@@ -267,7 +267,7 @@ def register_scalp_routes(app: FastAPI) -> None:
         return {"status": "ok", "message": "Session paused.", "session": session.model_dump()}
 
     @app.post("/scalp/sessions/{session_id}/resume", dependencies=deps)
-    async def resume_session(session_id: str) -> Dict[str, Any]:
+    def resume_session(session_id: str) -> Dict[str, Any]:
         mgr = get_session_manager()
         session = mgr.get_session(session_id)
         if not session:
@@ -277,7 +277,7 @@ def register_scalp_routes(app: FastAPI) -> None:
         return {"status": "ok", "message": "Session resumed.", "session": session.model_dump()}
 
     @app.post("/scalp/positions/{trade_id}/close", dependencies=deps)
-    async def manual_close_position(trade_id: str) -> Dict[str, Any]:
+    def manual_close_position(trade_id: str) -> Dict[str, Any]:
         mgr = get_session_manager()
         trade_obj = mgr._active_trades.get(trade_id)
         if not trade_obj:
@@ -318,13 +318,13 @@ def register_scalp_routes(app: FastAPI) -> None:
             return {"status": "ok", "message": "Position marked closed.", "trade": trade_dict}
 
     @app.get("/scalp/market/candidates", dependencies=deps)
-    async def get_market_candidates() -> Dict[str, Any]:
+    def get_market_candidates() -> Dict[str, Any]:
         scanner = get_market_scanner()
         res = scanner.scan_universe()
         return {"status": "ok", "data": res}
 
     @app.get("/scalp/market/{symbol}", dependencies=deps)
-    async def get_market_detail(symbol: str) -> Dict[str, Any]:
+    def get_market_detail(symbol: str) -> Dict[str, Any]:
         try:
             candles = fetch_candles(symbol=symbol, category="USDT-FUTURES", interval="5m", lookback=100)
             ticker = fetch_ticker(symbol=symbol, category="USDT-FUTURES")
@@ -344,13 +344,13 @@ def register_scalp_routes(app: FastAPI) -> None:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     @app.get("/scalp/research/{symbol}", dependencies=deps)
-    async def get_research_detail(symbol: str) -> Dict[str, Any]:
+    def get_research_detail(symbol: str) -> Dict[str, Any]:
         exa = get_exa_research_service()
         res = exa.validate_candidate_events(symbol)
         return {"status": "ok", "research": res}
 
     @app.get("/scalp/regime", dependencies=deps)
-    async def get_current_regime() -> Dict[str, Any]:
+    def get_current_regime() -> Dict[str, Any]:
         try:
             candles = fetch_candles(symbol="BTCUSDT", category="USDT-FUTURES", interval="5m", lookback=100)
             ticker = fetch_ticker(symbol="BTCUSDT", category="USDT-FUTURES")
@@ -361,28 +361,28 @@ def register_scalp_routes(app: FastAPI) -> None:
             return {"status": "ok", "regime": {"primary_regime": "UNCERTAIN", "confidence": 50.0}}
 
     @app.get("/scalp/strategies", dependencies=deps)
-    async def list_strategies() -> Dict[str, Any]:
+    def list_strategies() -> Dict[str, Any]:
         registry = get_strategy_registry()
         return {"status": "ok", "strategies": registry.list_strategies()}
 
     @app.post("/scalp/emergency-stop", dependencies=deps)
-    async def trigger_emergency_stop() -> Dict[str, Any]:
+    def trigger_emergency_stop() -> Dict[str, Any]:
         service = get_emergency_stop_service()
         res = service.activate(reason="User clicked Emergency Stop button in AI Scalp Trader interface")
         return res
 
     @app.get("/scalp/emergency-stop/status", dependencies=deps)
-    async def emergency_stop_status() -> Dict[str, Any]:
+    def emergency_stop_status() -> Dict[str, Any]:
         service = get_emergency_stop_service()
         return {"status": "ok", "data": service.get_status()}
 
     @app.post("/scalp/emergency-stop/reset", dependencies=deps)
-    async def reset_emergency_stop() -> Dict[str, Any]:
+    def reset_emergency_stop() -> Dict[str, Any]:
         service = get_emergency_stop_service()
         return service.reset()
 
     @app.post("/scalp/sessions/{session_id}/confirm", dependencies=deps)
-    async def confirm_copilot_trade(session_id: str, body: ConfirmProposalRequest) -> Dict[str, Any]:
+    def confirm_copilot_trade(session_id: str, body: ConfirmProposalRequest) -> Dict[str, Any]:
         mgr = get_session_manager()
         session = mgr.get_session(session_id)
         if not session:

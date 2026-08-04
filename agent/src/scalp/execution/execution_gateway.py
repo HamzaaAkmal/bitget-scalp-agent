@@ -141,16 +141,22 @@ class ExecutionGateway:
                         "category": "USDT-FUTURES",
                         "symbol": symbol,
                         "side": close_side,
+                        "posSide": pos_side,
                         "qty": str(fill_qty),
                         "orderType": "market",
-                        "reduceOnly": "yes",
                         "confirm": True,
-                    },
                 )
+                status = str(order_res.get("status", "")).lower()
+                if status != "ok":
+                    msg = order_res.get("error") or order_res.get("message") or str(order_res)
+                    if isinstance(msg, dict) and "message" in msg:
+                        msg = msg["message"]
+                    raise RuntimeError(f"Bitget MCP order failed: {msg}")
                 exit_price = float(trade_data.get("current_price") or trade_data.get("entry_price", 0.0))
             except Exception as exc:
                 logger.error(f"Close market order exception for {symbol}: {exc}")
-                exit_price = float(trade_data.get("current_price") or trade_data.get("entry_price", 0.0))
+                resp = {"status": "error", "error": f"Failed to close position on exchange: {exc}"}
+                return self.idempotency.record_idempotent_response(idem_key, "CLOSE_POSITION", resp)
 
         # Calculate exact Net PnL via PnLLedger
         from src.scalp.accounting.pnl_ledger import PnLLedger
