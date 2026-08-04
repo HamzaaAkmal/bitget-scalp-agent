@@ -110,10 +110,10 @@ class AddGoalEvidenceRequest(BaseModel):
 class GoalSnapshotResponse(BaseModel):
     """Finance research goal snapshot."""
 
-    goal: Dict[str, Any]
-    claims: List[Dict[str, Any]]
-    criteria: List[Dict[str, Any]]
-    evidence: List[Dict[str, Any]]
+    goal: Optional[Dict[str, Any]] = None
+    claims: List[Dict[str, Any]] = Field(default_factory=list)
+    criteria: List[Dict[str, Any]] = Field(default_factory=list)
+    evidence: List[Dict[str, Any]] = Field(default_factory=list)
     evidence_count: int = 0
 
 
@@ -446,7 +446,7 @@ def register_sessions_routes(app: FastAPI) -> None:
         _get_existing_session_or_404(session_id)
         snapshot = _get_goal_store().get_current_snapshot(session_id)
         if snapshot is None:
-            raise HTTPException(status_code=404, detail="No current goal")
+            return GoalSnapshotResponse()
         return snapshot
 
     @app.patch(

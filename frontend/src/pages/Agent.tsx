@@ -472,9 +472,13 @@ export function Agent() {
       return;
     }
     try {
-      const snapshot = await api.getGoal(targetSession);
+      const raw = await api.getGoal(targetSession) as any;
       if (act().sessionId !== targetSession) return;
-      setGoalSnapshot(snapshot);
+      if (!raw || !raw.goal) {
+        setGoalSnapshot(null);
+      } else {
+        setGoalSnapshot(raw as GoalSnapshot);
+      }
     } catch (error) {
       if (act().sessionId !== targetSession) return;
       if (error instanceof ApiError && error.status === 404) {
