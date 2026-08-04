@@ -51,28 +51,7 @@ class ExecutionMonitoringAgent:
         try:
             from src.services.bitget_mcp import call_bitget_tool
 
-            # 1. Set leverage
-            lev_res = call_bitget_tool(
-                "account_config",
-                {
-                    "action": "setLeverage",
-                    "category": "USDT-FUTURES",
-                    "marginCoin": "USDT",
-                    "symbol": symbol,
-                    "leverage": str(leverage),
-                    "posSide": pos_side,
-                    "confirm": True,
-                },
-            )
-            
-            if str(lev_res.get("status", "")).lower() != "ok":
-                err_msg = lev_res.get("error") or lev_res.get("message") or "Unknown leverage error"
-                return {
-                    "success": False,
-                    "error": f"CRITICAL: Failed to apply {leverage}x leverage on Bitget. Aborting trade to prevent incorrect risk. ({err_msg})",
-                }
-
-            # 2. Place market order with attached TP/SL
+            # 1. Place market order with attached TP/SL
             order_args = {
                 "action": "place",
                 "category": "USDT-FUTURES",

@@ -141,16 +141,13 @@ class ExecutionGateway:
                         "category": "USDT-FUTURES",
                         "symbol": symbol,
                         "side": close_side,
-                        "posSide": pos_side,
                         "qty": str(fill_qty),
                         "orderType": "market",
                         "reduceOnly": "yes",
                         "confirm": True,
                     },
                 )
-                from src.services.bitget_mcp import fetch_ticker
-                ticker = fetch_ticker(symbol=symbol, category="USDT-FUTURES")
-                exit_price = float(ticker.get("lastPrice") or trade_data.get("current_price") or trade_data.get("entry_price"))
+                exit_price = float(trade_data.get("current_price") or trade_data.get("entry_price", 0.0))
             except Exception as exc:
                 logger.error(f"Close market order exception for {symbol}: {exc}")
                 exit_price = float(trade_data.get("current_price") or trade_data.get("entry_price", 0.0))
